@@ -6,6 +6,7 @@ export default function App() {
     <View style={{flex: 1, alignItems: 'center', justifyContent: 'center'}}>
       <Text>Myk diagnostic screen</Text>
       <Text>React Native startup OK</Text>
+      <Text>Native startup diagnostics enabled</Text>
     </View>
   );
 }
