@@ -29,3 +29,10 @@ jobs:
         with:
           name: myk-webapp-dist
           path: dist
+
+      - name: Verify PWA files
+        run: |
+          test -f dist/manifest.webmanifest
+          test -f dist/sw.js
+          test -f dist/icons/myk-icon.svg
+          echo "PWA files verified"
