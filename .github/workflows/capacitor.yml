@@ -50,6 +50,12 @@ jobs:
           rm -rf android
           npx cap add android
 
+      - name: Install Myk native model bridge
+        run: |
+          mkdir -p android/app/src/main/java/com/myanmarofflineai/myk
+          cp capacitor/android/MykModelPlugin.java android/app/src/main/java/com/myanmarofflineai/myk/MykModelPlugin.java
+          cp capacitor/android/MainActivity.java android/app/src/main/java/com/myanmarofflineai/myk/MainActivity.java
+
       - name: Sync Capacitor
         run: npx cap sync android
 
