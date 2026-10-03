@@ -18,6 +18,9 @@ class MainApplication : Application(), ReactApplication {
 
     override fun onCreate() {
         super.onCreate()
+        CrashDiagnostics.install(this)
+        CrashDiagnostics.mark(this, "Application:onCreate:before_loadReactNative")
         loadReactNative(this)
+        CrashDiagnostics.mark(this, "Application:onCreate:after_loadReactNative")
     }
 }
