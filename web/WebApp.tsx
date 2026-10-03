@@ -1,4 +1,5 @@
-import React, {useState} from 'react';
+import React, {useEffect, useState} from 'react';
+import MykModel, {type ModelInfo} from './native/MykModel';
 
 type Tab = 'chat' | 'models' | 'settings';
 
@@ -7,6 +8,34 @@ export default function WebApp() {
   const [message, setMessage] = useState('');
   const [messages, setMessages] = useState<string[]>([]);
   const [modelName, setModelName] = useState('No GGUF model selected');
+  const [models, setModels] = useState<ModelInfo[]>([]);
+  const [busy, setBusy] = useState(false);
+
+  const refreshModels = async () => {
+    try {
+      const result = await MykModel.listModels();
+      setModels(result.models);
+      if (result.models.length) setModelName(result.models[0].name);
+    } catch {
+      // Browser/PWA mode has no native model bridge.
+    }
+  };
+
+  useEffect(() => { refreshModels(); }, []);
+
+  const pickModel = async () => {
+    setBusy(true);
+    try {
+      const model = await MykModel.pickModel();
+      setModelName(model.name);
+      await refreshModels();
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      if (message && !message.toLowerCase().includes('cancel')) alert(message);
+    } finally {
+      setBusy(false);
+    }
+  };
 
   const send = () => {
     const value = message.trim();
@@ -61,7 +90,8 @@ export default function WebApp() {
             <p style={{opacity: .7}}>Choose a local GGUF model for offline inference.</p>
             <div style={{padding: 16, borderRadius: 12, background: '#0f172a', marginBottom: 12}}>
               <div style={{fontWeight: 700}}>{modelName}</div>
-              <div style={{fontSize: 13, opacity: .55, marginTop: 5}}>Native Android model support is being connected next.</div>
+              <div style={{fontSize: 13, opacity: .55, marginTop: 5}}>{models.length} local GGUF model{models.length === 1 ? '' : 's'} stored on this device.</div>
+              {models.map(model => <div key={model.name} style={{marginTop: 8, fontSize: 12, opacity: .7}}>{model.name} · {(model.size / 1024 / 1024).toFixed(1)} MB</div>)}
             </div>
             <button onClick={() => setModelName('Model picker ready — native bridge pending')}
               style={{padding: '12px 16px', borderRadius: 10, border: '1px solid #475569', background: '#1e293b', color: '#fff'}}>
