@@ -93,9 +93,9 @@ export default function WebApp() {
               <div style={{fontSize: 13, opacity: .55, marginTop: 5}}>{models.length} local GGUF model{models.length === 1 ? '' : 's'} stored on this device.</div>
               {models.map(model => <div key={model.name} style={{marginTop: 8, fontSize: 12, opacity: .7}}>{model.name} · {(model.size / 1024 / 1024).toFixed(1)} MB</div>)}
             </div>
-            <button onClick={() => setModelName('Model picker ready — native bridge pending')}
+            <button onClick={pickModel} disabled={busy}
               style={{padding: '12px 16px', borderRadius: 10, border: '1px solid #475569', background: '#1e293b', color: '#fff'}}>
-              Select GGUF Model
+              {busy ? 'Opening model picker…' : 'Select GGUF Model'}
             </button>
           </section>
         )}
