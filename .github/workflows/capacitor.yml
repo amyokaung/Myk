@@ -45,8 +45,10 @@ jobs:
             "platforms;android-36" \
             "build-tools;36.0.0"
 
-      - name: Add Capacitor Android platform
-        run: npx cap add android
+      - name: Create clean Capacitor Android platform
+        run: |
+          rm -rf android
+          npx cap add android
 
       - name: Sync Capacitor
         run: npx cap sync android
