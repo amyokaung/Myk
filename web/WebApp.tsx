@@ -1,12 +1,20 @@
 import React, {useEffect, useState} from 'react';
 import MykModel, {type ModelInfo} from './native/MykModel';
+import {registerPlugin} from '@capacitor/core';
+
+interface MykAIPlugin {
+  chat(options: {message: string; modelName: string}): Promise<{reply: string}>;
+  stop(): Promise<void>;
+}
+
+const MykAI = registerPlugin<MykAIPlugin>('MykAI');
 
 type Tab = 'chat' | 'models' | 'settings';
 
 export default function WebApp() {
   const [tab, setTab] = useState<Tab>('chat');
   const [message, setMessage] = useState('');
-  const [messages, setMessages] = useState<string[]>([]);
+  const [messages, setMessages] = useState<Array<{role: 'user' | 'assistant'; text: string}>>([]);
   const [modelName, setModelName] = useState('No GGUF model selected');
   const [models, setModels] = useState<ModelInfo[]>([]);
   const [busy, setBusy] = useState(false);
@@ -16,9 +24,7 @@ export default function WebApp() {
       const result = await MykModel.listModels();
       setModels(result.models);
       if (result.models.length) setModelName(result.models[0].name);
-    } catch {
-      // Browser/PWA mode has no native model bridge.
-    }
+    } catch {}
   };
 
   useEffect(() => { refreshModels(); }, []);
@@ -30,18 +36,39 @@ export default function WebApp() {
       setModelName(model.name);
       await refreshModels();
     } catch (error) {
-      const message = error instanceof Error ? error.message : String(error);
-      if (message && !message.toLowerCase().includes('cancel')) alert(message);
+      const text = error instanceof Error ? error.message : String(error);
+      if (text && !text.toLowerCase().includes('cancel')) alert(text);
     } finally {
       setBusy(false);
     }
   };
 
-  const send = () => {
+  const send = async () => {
     const value = message.trim();
-    if (!value) return;
-    setMessages(current => [...current, value]);
+    if (!value || busy) return;
+
+    if (!models.length) {
+      alert('အရင်ဆုံး Models ထဲက GGUF model တစ်ခုရွေးပါ။');
+      setTab('models');
+      return;
+    }
+
+    const selected = modelName === 'No GGUF model selected' ? models[0]?.name : modelName;
+    if (!selected) return;
+
     setMessage('');
+    setMessages(current => [...current, {role: 'user', text: value}]);
+    setBusy(true);
+
+    try {
+      const result = await MykAI.chat({message: value, modelName: selected});
+      setMessages(current => [...current, {role: 'assistant', text: result.reply || '(No response)'}]);
+    } catch (error) {
+      const text = error instanceof Error ? error.message : String(error);
+      setMessages(current => [...current, {role: 'assistant', text: '❌ ' + text}]);
+    } finally {
+      setBusy(false);
+    }
   };
 
   return (
@@ -73,13 +100,19 @@ export default function WebApp() {
               {messages.length === 0
                 ? <div style={{opacity: .55, textAlign: 'center', paddingTop: 140}}>Your offline conversation will appear here.</div>
                 : messages.map((item, i) => (
-                    <div key={i} style={{padding: '11px 14px', marginBottom: 10, background: '#1e293b', borderRadius: 12}}>{item}</div>
+                    <div key={i} style={{padding: '11px 14px', marginBottom: 10, background: item.role === 'user' ? '#1e293b' : '#172554', borderRadius: 12}}>
+                      <div style={{fontSize: 11, opacity: .55, marginBottom: 4}}>{item.role === 'user' ? 'You' : 'Myk'}</div>
+                      {item.text}
+                    </div>
                   ))}
+              {busy && <div style={{opacity: .65, padding: 10}}>Myk is thinking…</div>}
             </section>
             <div style={{display: 'flex', gap: 8, marginTop: 12}}>
               <input value={message} onChange={e => setMessage(e.target.value)} onKeyDown={e => e.key === 'Enter' && send()}
                 placeholder="မြန်မာလို မေးခွန်းရေးပါ…" style={{flex: 1, minWidth: 0, padding: 14, borderRadius: 12, border: '1px solid #334155', background: '#111827', color: '#fff'}} />
-              <button onClick={send} style={{padding: '0 20px', border: 0, borderRadius: 12, fontWeight: 700}}>Send</button>
+              <button onClick={send} disabled={busy} style={{padding: '0 20px', border: 0, borderRadius: 12, fontWeight: 700}}>
+                {busy ? '…' : 'Send'}
+              </button>
             </div>
           </>
         )}
