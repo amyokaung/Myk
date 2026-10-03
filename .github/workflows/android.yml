@@ -10,39 +10,63 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
+      # 1. Checkout source code
       - name: Checkout app
         uses: actions/checkout@v4
 
+      # 2. Setup Node.js
       - name: Setup Node
         uses: actions/setup-node@v4
         with:
           node-version: 22
 
+      # 3. Setup Java 17
       - name: Setup Java
         uses: actions/setup-java@v4
         with:
           distribution: temurin
           java-version: 17
 
+      # 4. Setup Android SDK
       - name: Setup Android SDK
-        uses: android-actions/setup-android@v3
+        uses: android-actions/setup-android@v4
+        with:
+          packages: 'platform-tools'
 
+      # 5. Install required Android SDK packages
       - name: Install Android packages
         run: |
-          sdkmanager "platforms;android-36" "build-tools;36.0.0" "ndk;27.1.12297006" "cmake;3.31.6"
           yes | sdkmanager --licenses || true
 
-      - name: Install JavaScript dependencies
-        run: npm install
+          sdkmanager \
+            "platforms;android-36" \
+            "build-tools;36.0.0" \
+            "ndk;27.1.12297006" \
+            "cmake;3.31.6"
 
+      # 6. Install JavaScript dependencies
+      - name: Install JavaScript dependencies
+        run: |
+          npm install
+
+      # 7. Build llama-server for Android arm64
       - name: Build llama-server for Android arm64
         shell: bash
         run: |
           set -euxo pipefail
 
-          git clone --depth 1 https://github.com/ggml-org/llama.cpp.git cpp/llama.cpp
+          echo "ANDROID_NDK_HOME=$ANDROID_NDK_HOME"
+          echo "ANDROID_HOME=$ANDROID_HOME"
 
-          cmake -S cpp/llama.cpp -B cpp/llama-build \
+          # Clone latest llama.cpp
+          git clone --depth 1 \
+            https://github.com/ggml-org/llama.cpp.git \
+            cpp/llama.cpp
+
+          # Configure llama.cpp
+          cmake \
+            -S cpp/llama.cpp \
+            -B cpp/llama-build \
             -DCMAKE_TOOLCHAIN_FILE="$ANDROID_NDK_HOME/build/cmake/android.toolchain.cmake" \
             -DANDROID_ABI=arm64-v8a \
             -DANDROID_PLATFORM=android-24 \
@@ -57,25 +81,48 @@ jobs:
             -DLLAMA_CURL=OFF \
             -DLLAMA_BUILD_SERVER=ON
 
-          cmake --build cpp/llama-build --config Release --target llama-server -j2
+          # Build llama-server
+          cmake \
+            --build cpp/llama-build \
+            --config Release \
+            --target llama-server \
+            -j2
 
+          # Create Android native library directory
           mkdir -p android/app/src/main/jniLibs/arm64-v8a
 
-          cp cpp/llama-build/bin/llama-server \
+          # Copy llama-server
+          cp \
+            cpp/llama-build/bin/llama-server \
             android/app/src/main/jniLibs/arm64-v8a/libllamaserver.so
 
-          cp "$ANDROID_NDK_HOME/toolchains/llvm/prebuilt/linux-x86_64/sysroot/usr/lib/aarch64-linux-android/libc++_shared.so" \
+          # Copy Android C++ runtime
+          cp \
+            "$ANDROID_NDK_HOME/toolchains/llvm/prebuilt/linux-x86_64/sysroot/usr/lib/aarch64-linux-android/libc++_shared.so" \
             android/app/src/main/jniLibs/arm64-v8a/libc++_shared.so
 
-          chmod 755 android/app/src/main/jniLibs/arm64-v8a/libllamaserver.so
+          # Make executable
+          chmod 755 \
+            android/app/src/main/jniLibs/arm64-v8a/libllamaserver.so
 
+          # Verify binary
+          echo "===== llama-server ====="
+          ls -lh android/app/src/main/jniLibs/arm64-v8a/
           file android/app/src/main/jniLibs/arm64-v8a/libllamaserver.so
 
+      # 8. Build release APK
       - name: Build release APK
         run: |
           cd android
-          ./gradlew clean assembleRelease --no-daemon
 
+          chmod +x gradlew
+
+          ./gradlew \
+            clean \
+            assembleRelease \
+            --no-daemon
+
+      # 9. Upload APK
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
