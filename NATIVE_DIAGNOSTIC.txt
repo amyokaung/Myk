@@ -1,0 +1,1 @@
+Native-only startup diagnostic build trigger. React Native is intentionally disabled in this branch.
