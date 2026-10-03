@@ -4,7 +4,7 @@ on:
   workflow_dispatch:
   push:
     branches: [rn-debug-diagnostic]
-    
+
 jobs:
   build:
     runs-on: ubuntu-latest
@@ -37,19 +37,23 @@ jobs:
       - name: Install JavaScript dependencies
         run: npm install
 
+      - name: Remove optional llama native binary for isolation
+        run: |
+          rm -rf android/app/src/main/jniLibs
+
       - name: Setup Gradle
         uses: gradle/actions/setup-gradle@v4
         with:
           gradle-version: '9.4.1'
 
-      - name: Build debug APK
+      - name: Build pure React Native release APK
         run: |
           cd android
-          gradle clean assembleDebug --no-daemon
+          gradle clean assembleRelease --no-daemon
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
-          name: myanmar-offline-ai-rn-debug
-          path: android/app/build/outputs/apk/debug/*.apk
+          name: myanmar-offline-ai-pure-rn-release
+          path: android/app/build/outputs/apk/release/*.apk
           if-no-files-found: error
