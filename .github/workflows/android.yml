@@ -3,7 +3,7 @@ name: Android APK
 on:
   workflow_dispatch:
   push:
-    branches: [main]
+    branches: [main, parallel-native-test]
 
 jobs:
   build:
@@ -32,7 +32,6 @@ jobs:
       - name: Install Android packages
         run: |
           yes | sdkmanager --licenses || true
-
           sdkmanager \
             "platforms;android-36" \
             "build-tools;36.0.0" \
@@ -40,62 +39,26 @@ jobs:
             "cmake;3.31.6"
 
       - name: Install JavaScript dependencies
-        run: |
-          npm install
+        run: npm install
 
       - name: Build llama-server for Android arm64
         shell: bash
         run: |
           set -euxo pipefail
-
-          echo "ANDROID_NDK_HOME=$ANDROID_NDK_HOME"
-          echo "ANDROID_HOME=$ANDROID_HOME"
-
-          git clone --depth 1 \
-            https://github.com/ggml-org/llama.cpp.git \
-            cpp/llama.cpp
-
-          cmake \
-            -S cpp/llama.cpp \
-            -B cpp/llama-build \
+          git clone --depth 1 https://github.com/ggml-org/llama.cpp.git cpp/llama.cpp
+          cmake -S cpp/llama.cpp -B cpp/llama-build \
             -DCMAKE_TOOLCHAIN_FILE="$ANDROID_NDK_HOME/build/cmake/android.toolchain.cmake" \
-            -DANDROID_ABI=arm64-v8a \
-            -DANDROID_PLATFORM=android-24 \
-            -DANDROID_STL=c++_shared \
-            -DCMAKE_BUILD_TYPE=Release \
-            -DGGML_NATIVE=OFF \
-            -DGGML_OPENMP=OFF \
-            -DGGML_VULKAN=OFF \
-            -DGGML_CUDA=OFF \
-            -DGGML_METAL=OFF \
-            -DGGML_LLAMAFILE=OFF \
-            -DLLAMA_CURL=OFF \
-            -DLLAMA_BUILD_SERVER=ON
-
-          cmake \
-            --build cpp/llama-build \
-            --config Release \
-            --target llama-server \
-            -j2
-
+            -DANDROID_ABI=arm64-v8a -DANDROID_PLATFORM=android-24 \
+            -DANDROID_STL=c++_shared -DCMAKE_BUILD_TYPE=Release \
+            -DGGML_NATIVE=OFF -DGGML_OPENMP=OFF -DGGML_VULKAN=OFF \
+            -DGGML_CUDA=OFF -DGGML_METAL=OFF -DGGML_LLAMAFILE=OFF \
+            -DLLAMA_CURL=OFF -DLLAMA_BUILD_SERVER=ON
+          cmake --build cpp/llama-build --config Release --target llama-server -j2
           mkdir -p android/app/src/main/jniLibs/arm64-v8a
-
-          cp \
-            cpp/llama-build/bin/llama-server \
-            android/app/src/main/jniLibs/arm64-v8a/libllamaserver.so
-
-          cp \
-            "$ANDROID_NDK_HOME/toolchains/llvm/prebuilt/linux-x86_64/sysroot/usr/lib/aarch64-linux-android/libc++_shared.so" \
-            android/app/src/main/jniLibs/arm64-v8a/libc++_shared.so
-
-          chmod 755 \
-            android/app/src/main/jniLibs/arm64-v8a/libllamaserver.so
-
-          echo "===== llama-server ====="
-          ls -lh android/app/src/main/jniLibs/arm64-v8a/
-
-          file \
-            android/app/src/main/jniLibs/arm64-v8a/libllamaserver.so
+          cp cpp/llama-build/bin/llama-server android/app/src/main/jniLibs/arm64-v8a/libllamaserver.so
+          cp "$ANDROID_NDK_HOME/toolchains/llvm/prebuilt/linux-x86_64/sysroot/usr/lib/aarch64-linux-android/libc++_shared.so" android/app/src/main/jniLibs/arm64-v8a/libc++_shared.so
+          chmod 755 android/app/src/main/jniLibs/arm64-v8a/libllamaserver.so
+          file android/app/src/main/jniLibs/arm64-v8a/libllamaserver.so
 
       - name: Setup Gradle
         uses: gradle/actions/setup-gradle@v4
@@ -110,6 +73,6 @@ jobs:
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
-          name: myanmar-offline-ai-release
+          name: myanmar-offline-ai-release-parallel
           path: android/app/build/outputs/apk/release/*.apk
           if-no-files-found: error
