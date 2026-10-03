@@ -7,6 +7,7 @@ public class MainActivity extends BridgeActivity {
     @Override
     public void onCreate(Bundle savedInstanceState) {
         registerPlugin(MykModelPlugin.class);
+        registerPlugin(MykAIPlugin.class);
         super.onCreate(savedInstanceState);
     }
 }
