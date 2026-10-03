@@ -3,7 +3,7 @@ name: Android APK
 on:
   workflow_dispatch:
   push:
-    branches: [main]
+    branches: [main, diagnostic-base-rn]
 
 jobs:
   build:
@@ -48,9 +48,6 @@ jobs:
         run: |
           set -euxo pipefail
 
-          echo "ANDROID_NDK_HOME=$ANDROID_NDK_HOME"
-          echo "ANDROID_HOME=$ANDROID_HOME"
-
           git clone --depth 1 \
             https://github.com/ggml-org/llama.cpp.git \
             cpp/llama.cpp
@@ -72,30 +69,19 @@ jobs:
             -DLLAMA_CURL=OFF \
             -DLLAMA_BUILD_SERVER=ON
 
-          cmake \
-            --build cpp/llama-build \
-            --config Release \
-            --target llama-server \
-            -j2
+          cmake --build cpp/llama-build --config Release --target llama-server -j2
 
           mkdir -p android/app/src/main/jniLibs/arm64-v8a
 
-          cp \
-            cpp/llama-build/bin/llama-server \
+          cp cpp/llama-build/bin/llama-server \
             android/app/src/main/jniLibs/arm64-v8a/libllamaserver.so
 
-          cp \
-            "$ANDROID_NDK_HOME/toolchains/llvm/prebuilt/linux-x86_64/sysroot/usr/lib/aarch64-linux-android/libc++_shared.so" \
+          cp "$ANDROID_NDK_HOME/toolchains/llvm/prebuilt/linux-x86_64/sysroot/usr/lib/aarch64-linux-android/libc++_shared.so" \
             android/app/src/main/jniLibs/arm64-v8a/libc++_shared.so
 
-          chmod 755 \
-            android/app/src/main/jniLibs/arm64-v8a/libllamaserver.so
+          chmod 755 android/app/src/main/jniLibs/arm64-v8a/libllamaserver.so
 
-          echo "===== llama-server ====="
-          ls -lh android/app/src/main/jniLibs/arm64-v8a/
-
-          file \
-            android/app/src/main/jniLibs/arm64-v8a/libllamaserver.so
+          file android/app/src/main/jniLibs/arm64-v8a/libllamaserver.so
 
       - name: Setup Gradle
         uses: gradle/actions/setup-gradle@v4
@@ -110,6 +96,6 @@ jobs:
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
-          name: myanmar-offline-ai-release
+          name: myanmar-offline-ai-release-diagnostic
           path: android/app/build/outputs/apk/release/*.apk
           if-no-files-found: error
