@@ -1,4 +1,4 @@
-import DocumentPicker from 'react-native-document-picker';
+import { keepLocalCopy, pick } from '@react-native-documents/picker';
 import RNFS from 'react-native-fs';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
@@ -14,26 +14,39 @@ export async function initModelDirectory() {
 export async function importGGUFModel() {
   await initModelDirectory();
 
-  const result = await DocumentPicker.pickSingle({
-    type: ['application/octet-stream', 'application/octet-stream'],
-    copyTo: 'documentDirectory',
+  const [result] = await pick({
+    type: ['application/octet-stream'],
+    allowVirtualFiles: true,
   });
 
   const fileName = result.name ?? '';
-
   if (!fileName.toLowerCase().endsWith('.gguf')) {
     throw new Error('Only .gguf model files are supported.');
   }
 
-  if (!result.fileCopyUri) {
-    throw new Error('Unable to access the selected model file.');
+  const [copyResult] = await keepLocalCopy({
+    files: [
+      {
+        uri: result.uri,
+        fileName,
+      },
+    ],
+    destination: 'documentDirectory',
+  });
+
+  if (copyResult.status !== 'success') {
+    throw new Error(
+      'Unable to access the selected model file: ' +
+        (copyResult.copyError ?? 'unknown error'),
+    );
   }
 
+  const localUri = copyResult.localUri.replace(/^file:\/\//, '');
   const safeName = fileName.replace(/[^a-zA-Z0-9._-]/g, '_');
   const destination = `${MODEL_DIR}/${safeName}`;
 
-  if (destination !== result.fileCopyUri) {
-    await RNFS.copyFile(result.fileCopyUri, destination);
+  if (localUri !== destination) {
+    await RNFS.copyFile(localUri, destination);
   }
 
   const stat = await RNFS.stat(destination);
