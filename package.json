@@ -11,7 +11,9 @@
     "build:debug": "cd android && ./gradlew assembleDebug",
     "build:release": "cd android && ./gradlew assembleRelease",
     "web:dev": "vite --host 0.0.0.0",
-    "web:build": "vite build"
+    "web:build": "vite build",
+    "cap:sync": "npm run web:build && npx cap sync android",
+    "android:cap": "npm run web:build && npx cap sync android && cd android && ./gradlew assembleDebug"
   },
   "dependencies": {
     "@op-engineering/op-sqlite": "^15.1.14",
@@ -27,7 +29,9 @@
     "react-native-screens": "^4.16.0",
     "react-native-web": "^0.21.2",
     "zustand": "^5.0.8",
-    "@react-native-documents/picker": "^12.0.2"
+    "@react-native-documents/picker": "^12.0.2",
+    "@capacitor/core": "^8.2.0",
+    "@capacitor/android": "^8.2.0"
   },
   "devDependencies": {
     "@react-native-community/cli": "^20.0.0",
@@ -39,6 +43,7 @@
     "@types/react-native": "^0.72.8",
     "@vitejs/plugin-react": "^5.0.4",
     "typescript": "^5.9.2",
-    "vite": "^7.1.7"
+    "vite": "^7.1.7",
+    "@capacitor/cli": "^8.2.0"
   }
 }
