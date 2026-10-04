@@ -18,9 +18,21 @@ import com.getcapacitor.annotation.CapacitorPlugin;
 import java.io.File;
 import java.io.FileOutputStream;
 import java.io.InputStream;
+import java.io.RandomAccessFile;
+import java.net.HttpURLConnection;
+import java.net.URL;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 
 @CapacitorPlugin(name = "MykModel")
 public class MykModelPlugin extends Plugin {
+    private final ExecutorService downloadExecutor = Executors.newSingleThreadExecutor();
+    private volatile boolean downloading = false;
+    private volatile boolean cancelDownload = false;
+    private volatile long downloadBytes = 0;
+    private volatile long downloadTotal = 0;
+    private volatile String downloadName = "";
+    private volatile String downloadError = "";
 
     @PluginMethod
     public void pickModel(PluginCall call) {
@@ -61,6 +73,126 @@ public class MykModelPlugin extends Plugin {
     }
 
     @PluginMethod
+    public void downloadModel(PluginCall call) {
+        if (downloading) {
+            call.reject("A model download is already running");
+            return;
+        }
+
+        String name = call.getString("name");
+        String urlString = call.getString("url");
+        Long expectedSize = call.getLong("sizeBytes");
+
+        if (name == null || urlString == null || !isSafeModelName(name) || !urlString.startsWith("https://")) {
+            call.reject("Invalid model download");
+            return;
+        }
+
+        File dir = new File(getContext().getFilesDir(), "models");
+        if (!dir.exists() && !dir.mkdirs()) {
+            call.reject("Could not create model directory");
+            return;
+        }
+
+        File target = new File(dir, name);
+        File partial = new File(dir, name + ".part");
+        if (target.exists() && target.length() > 0) {
+            JSObject ret = new JSObject();
+            ret.put("name", target.getName());
+            ret.put("path", target.getAbsolutePath());
+            ret.put("size", target.length());
+            call.resolve(ret);
+            return;
+        }
+
+        downloading = true;
+        cancelDownload = false;
+        downloadName = name;
+        downloadError = "";
+        downloadBytes = partial.exists() ? partial.length() : 0;
+        downloadTotal = expectedSize == null ? 0 : expectedSize;
+        call.resolve(new JSObject().put("started", true));
+
+        downloadExecutor.execute(() -> {
+            try {
+                downloadFile(urlString, partial, target);
+            } catch (Exception e) {
+                downloadError = e.getMessage() == null ? "Download failed" : e.getMessage();
+                if (target.exists()) target.delete();
+            } finally {
+                downloading = false;
+            }
+        });
+    }
+
+    @PluginMethod
+    public void getDownloadStatus(PluginCall call) {
+        JSObject ret = new JSObject();
+        ret.put("downloading", downloading);
+        ret.put("cancelled", cancelDownload && !downloading);
+        ret.put("name", downloadName);
+        ret.put("bytes", downloadBytes);
+        ret.put("total", downloadTotal);
+        ret.put("error", downloadError);
+        call.resolve(ret);
+    }
+
+    @PluginMethod
+    public void cancelDownload(PluginCall call) {
+        cancelDownload = true;
+        call.resolve();
+    }
+
+    private void downloadFile(String urlString, File partial, File target) throws Exception {
+        long existing = partial.exists() ? partial.length() : 0;
+        HttpURLConnection connection = null;
+        try {
+            URL url = new URL(urlString);
+            connection = (HttpURLConnection) url.openConnection();
+            connection.setConnectTimeout(30000);
+            connection.setReadTimeout(30000);
+            connection.setInstanceFollowRedirects(true);
+            if (existing > 0) connection.setRequestProperty("Range", "bytes=" + existing + "-");
+            int code = connection.getResponseCode();
+
+            if (existing > 0 && code == HttpURLConnection.HTTP_OK) {
+                existing = 0;
+                downloadBytes = 0;
+                if (partial.exists()) partial.delete();
+            } else if (code != HttpURLConnection.HTTP_OK && code != HttpURLConnection.HTTP_PARTIAL) {
+                throw new Exception("Server returned HTTP " + code);
+            }
+
+            long contentLength = connection.getContentLengthLong();
+            if (code == HttpURLConnection.HTTP_PARTIAL) {
+                downloadTotal = existing + Math.max(0, contentLength);
+            } else if (contentLength > 0) {
+                downloadTotal = contentLength;
+            }
+            downloadBytes = existing;
+
+            try (InputStream input = connection.getInputStream();
+                 RandomAccessFile output = new RandomAccessFile(partial, "rw")) {
+                output.seek(existing);
+                byte[] buffer = new byte[1024 * 1024];
+                int read;
+                while (!cancelDownload && (read = input.read(buffer)) != -1) {
+                    output.write(buffer, 0, read);
+                    downloadBytes += read;
+                }
+            }
+
+            if (cancelDownload) return;
+            if (downloadTotal > 0 && downloadBytes < downloadTotal) throw new Exception("Download incomplete");
+            if (target.exists()) target.delete();
+            if (!partial.renameTo(target)) throw new Exception("Could not finalize downloaded model");
+            downloadBytes = target.length();
+        } finally {
+            if (connection != null) connection.disconnect();
+        }
+    }
+
+    @PluginMethod
     public void deleteModel(PluginCall call) {
         String name = call.getString("name");
 
@@ -81,6 +213,13 @@ public class MykModelPlugin extends Plugin {
         }
 
         call.resolve();
+    }
+
+    private boolean isSafeModelName(String name) {
+        return name != null
+                && !name.contains("/")
+                && !name.contains("\\\\")
+                && name.toLowerCase().endsWith(".gguf");
     }
 
     @ActivityCallback
