@@ -62,8 +62,14 @@ jobs:
           test -x cpp/llama-build/bin/llama-server
           mkdir -p android/app/src/main/jniLibs/arm64-v8a
           cp cpp/llama-build/bin/llama-server android/app/src/main/jniLibs/arm64-v8a/libllamaserver.so
+
+          # llama-server is a small launcher that dynamically depends on the
+          # llama.cpp shared libraries produced beside it. Package all of them
+          # into nativeLibraryDir so ProcessBuilder can resolve them at runtime.
+          find cpp/llama-build/bin -maxdepth 1 -type f -name '*.so' -exec cp {} android/app/src/main/jniLibs/arm64-v8a/ \;
+
           cp "$ANDROID_NDK_HOME/toolchains/llvm/prebuilt/linux-x86_64/sysroot/usr/lib/aarch64-linux-android/libc++_shared.so" android/app/src/main/jniLibs/arm64-v8a/libc++_shared.so
-          chmod 755 android/app/src/main/jniLibs/arm64-v8a/libllamaserver.so
+          chmod 755 android/app/src/main/jniLibs/arm64-v8a/*.so
           file android/app/src/main/jniLibs/arm64-v8a/libllamaserver.so
           ls -lh android/app/src/main/jniLibs/arm64-v8a/
 
@@ -111,6 +117,10 @@ jobs:
           test -s android/app/src/main/jniLibs/arm64-v8a/libllamaserver.so
           unzip -l android/app/build/outputs/apk/debug/app-debug.apk | grep 'lib/arm64-v8a/libllamaserver.so'
           unzip -l android/app/build/outputs/apk/debug/app-debug.apk | grep 'lib/arm64-v8a/libc++_shared.so'
+          for lib in android/app/src/main/jniLibs/arm64-v8a/*.so; do
+            base="$(basename "$lib")"
+            unzip -l android/app/build/outputs/apk/debug/app-debug.apk | grep "lib/arm64-v8a/$base"
+          done
           ls -lh android/app/build/outputs/apk/debug/app-debug.apk
 
       - name: Upload APK
