@@ -11,7 +11,6 @@ interface EngineSettings {
 }
 
 const DEFAULT_SETTINGS: EngineSettings = {
-  // Mobile-friendly defaults: lower RAM use and shorter answers.
   contextSize: 512,
   threads: 4,
   temperature: 0.5,
@@ -19,10 +18,16 @@ const DEFAULT_SETTINGS: EngineSettings = {
   startupTimeoutSeconds: 600,
 };
 
+interface ChatMessage {
+  role: 'user' | 'assistant';
+  text: string;
+}
+
 interface MykAIPlugin {
   chat(options: {
     message: string;
     modelName: string;
+    historyJson?: string;
     contextSize?: number;
     threads?: number;
     temperature?: number;
@@ -40,10 +45,11 @@ const SETTINGS_KEY = 'myk-engine-settings';
 export default function WebApp() {
   const [tab, setTab] = useState<Tab>('chat');
   const [message, setMessage] = useState('');
-  const [messages, setMessages] = useState<Array<{role: 'user' | 'assistant'; text: string}>>([]);
+  const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [modelName, setModelName] = useState('No GGUF model selected');
   const [models, setModels] = useState<ModelInfo[]>([]);
   const [busy, setBusy] = useState(false);
+  const [copiedIndex, setCopiedIndex] = useState<number | null>(null);
   const [settings, setSettings] = useState<EngineSettings>(() => {
     try {
       const saved = localStorage.getItem(SETTINGS_KEY);
@@ -67,7 +73,12 @@ export default function WebApp() {
     try {
       const result = await MykModel.listModels();
       setModels(result.models);
-      if (result.models.length) setModelName(result.models[0].name);
+      setModelName(current => {
+        if (current !== 'No GGUF model selected' && result.models.some(m => m.name === current)) {
+          return current;
+        }
+        return result.models[0]?.name || 'No GGUF model selected';
+      });
     } catch {}
   };
 
@@ -87,6 +98,24 @@ export default function WebApp() {
     }
   };
 
+  const newChat = async () => {
+    if (busy) await MykAI.stop().catch(() => {});
+    setBusy(false);
+    setMessages([]);
+    setMessage('');
+    setTab('chat');
+  };
+
+  const copyMessage = async (text: string, index: number) => {
+    try {
+      await navigator.clipboard.writeText(text);
+      setCopiedIndex(index);
+      window.setTimeout(() => setCopiedIndex(current => current === index ? null : current), 1200);
+    } catch {
+      alert('Copy မလုပ်နိုင်ပါ။');
+    }
+  };
+
   const send = async () => {
     const value = message.trim();
     if (!value || busy) return;
@@ -100,6 +129,12 @@ export default function WebApp() {
     const selected = modelName === 'No GGUF model selected' ? models[0]?.name : modelName;
     if (!selected) return;
 
+    const history = messages.slice(-10);
+    const historyJson = JSON.stringify(history.map(item => ({
+      role: item.role,
+      content: item.text,
+    })));
+
     setMessage('');
     setMessages(current => [...current, {role: 'user', text: value}]);
     setBusy(true);
@@ -108,6 +143,7 @@ export default function WebApp() {
       const result = await MykAI.chat({
         message: value,
         modelName: selected,
+        historyJson,
         contextSize: settings.contextSize,
         threads: settings.threads,
         temperature: settings.temperature,
@@ -123,7 +159,10 @@ export default function WebApp() {
     }
   };
 
-  const clearChat = () => setMessages([]);
+  const clearChat = () => {
+    if (busy) return;
+    setMessages([]);
+  };
 
   const row = (label: string, control: React.ReactNode) => (
     <div style={{padding: '14px 0', borderBottom: '1px solid #263044'}}>
@@ -140,8 +179,9 @@ export default function WebApp() {
           <div><div style={{fontSize:17,fontWeight:800}}>Myk</div><div style={{fontSize:10,color:'#8993a6'}}>Myanmar Offline AI</div></div>
         </div>
         <div style={{display:'flex',gap:7}}>
-          {messages.length > 0 && <button onClick={clearChat} style={{width:38,height:38,borderRadius:11,border:'1px solid #252c3a',background:'#111620',color:'#b9c2d3'}}>⌫</button>}
-          <button onClick={()=>setTab('settings')} style={{width:38,height:38,borderRadius:11,border:'1px solid #252c3a',background:'#111620',color:'#b9c2d3'}}>⚙</button>
+          {messages.length > 0 && <button onClick={clearChat} disabled={busy} aria-label="Clear chat" style={{width:38,height:38,borderRadius:11,border:'1px solid #252c3a',background:'#111620',color:'#b9c2d3'}}>⌫</button>}
+          <button onClick={newChat} aria-label="New chat" style={{width:38,height:38,borderRadius:11,border:'1px solid #252c3a',background:'#111620',color:'#b9c2d3'}}>＋</button>
+          <button onClick={()=>setTab('settings')} aria-label="Settings" style={{width:38,height:38,borderRadius:11,border:'1px solid #252c3a',background:'#111620',color:'#b9c2d3'}}>⚙</button>
         </div>
       </header>
 
@@ -168,7 +208,10 @@ export default function WebApp() {
             ) : (
               <div key={i} style={{display:'flex',gap:10,margin:'20px 0'}}>
                 <div style={{width:30,height:30,flex:'0 0 30px',borderRadius:10,display:'grid',placeItems:'center',background:'#171d29',border:'1px solid #2a3342',fontWeight:800,fontSize:12}}>M</div>
-                <div style={{maxWidth:'84%',color:'#e3e8f0',lineHeight:1.75,fontSize:14,whiteSpace:'pre-wrap'}}>{item.text}</div>
+                <div style={{maxWidth:'84%',color:'#e3e8f0',lineHeight:1.75,fontSize:14,whiteSpace:'pre-wrap'}}>
+                  <div>{item.text}</div>
+                  <button onClick={()=>copyMessage(item.text,i)} style={{marginTop:7,padding:'4px 8px',borderRadius:8,border:'1px solid #252d3b',background:'#10151f',color:'#7f899b',fontSize:10}}>{copiedIndex===i?'Copied ✓':'Copy'}</button>
+                </div>
               </div>
             ))}
             {busy && <div style={{display:'flex',gap:10,margin:'20px 0'}}><div style={{width:30,height:30,borderRadius:10,display:'grid',placeItems:'center',background:'#171d29',border:'1px solid #2a3342',fontWeight:800,fontSize:12}}>M</div><div style={{color:'#8e98aa',paddingTop:5}}>Myk is thinking ···</div></div>}
@@ -184,7 +227,7 @@ export default function WebApp() {
               <div style={{fontSize:14,fontWeight:700,marginTop:7,wordBreak:'break-word'}}>{modelName}</div>
               <div style={{fontSize:11,color:'#7f899b',marginTop:6}}>{models.length} local model{models.length===1?'':'s'}</div>
             </div>
-            {models.map(model=><div key={model.name} style={{marginTop:10,padding:14,borderRadius:15,background:'#0c1119',border:model.name===modelName?'1px solid #6658e8':'1px solid #202837'}}><div style={{fontSize:13,fontWeight:650,wordBreak:'break-word'}}>{model.name}</div><div style={{fontSize:11,color:'#7f899b',marginTop:5}}>{(model.size/1024/1024).toFixed(1)} MB {model.name===modelName?'· Active':''}</div></div>)}
+            {models.map(model=><button key={model.name} onClick={()=>setModelName(model.name)} style={{display:'block',width:'100%',textAlign:'left',marginTop:10,padding:14,borderRadius:15,background:'#0c1119',border:model.name===modelName?'1px solid #6658e8':'1px solid #202837',color:'#f5f7fb'}}><div style={{fontSize:13,fontWeight:650,wordBreak:'break-word'}}>{model.name}</div><div style={{fontSize:11,color:'#7f899b',marginTop:5}}>{(model.size/1024/1024).toFixed(1)} MB {model.name===modelName?'· Active · Tap to select':''}</div></button>)}
             <button onClick={pickModel} disabled={busy} style={{marginTop:14,width:'100%',padding:13,border:0,borderRadius:13,background:'linear-gradient(135deg,#7c5cff,#4f8cff)',color:'#fff',fontWeight:750}}>{busy?'Opening…':'+ Add / Select GGUF Model'}</button>
           </section>
         )}
@@ -192,7 +235,7 @@ export default function WebApp() {
         {tab === 'settings' && (
           <section style={{margin:'22px 15px 110px',padding:18,borderRadius:20,background:'#10151f',border:'1px solid #202837'}}>
             <div style={{fontSize:24,fontWeight:800}}>Settings</div>
-            <p style={{color:'#8993a6',fontSize:13,lineHeight:1.6}}>AI engine ကို ဒီဖုန်းထဲမှာပဲ ချိန်ညှိနိုင်ပါတယ်။</p>
+            <p style={{color:'#8993a6',fontSize:13,lineHeight:1.6}}>AI engine ကို ဒီဖုန်းထဲမှာပဲ ချိန်ညှိနိုင်ပါတယ်။ Model သို့မဟုတ် engine setting ပြောင်းပြီးနောက် နောက်မေးခွန်းမှာ server ကို အလိုအလျောက် restart လုပ်ပေးပါမယ်။</p>
             {row('Context Size', <select value={settings.contextSize} onChange={e=>saveSettings({...settings,contextSize:Number(e.target.value)})} style={{width:'100%',padding:12,borderRadius:12,background:'#0c1119',color:'#fff',border:'1px solid #2b3444'}}>{[512,1024,2048,4096].map(v=><option key={v} value={v}>{v}</option>)}</select>)}
             {row('CPU Threads', <select value={settings.threads} onChange={e=>saveSettings({...settings,threads:Number(e.target.value)})} style={{width:'100%',padding:12,borderRadius:12,background:'#0c1119',color:'#fff',border:'1px solid #2b3444'}}>{[1,2,3,4,5,6,7,8].map(v=><option key={v} value={v}>{v}</option>)}</select>)}
             {row('Temperature', <input type="number" min="0" max="1.5" step="0.1" value={settings.temperature} onChange={e=>saveSettings({...settings,temperature:Number(e.target.value)})} style={{width:'100%',boxSizing:'border-box',padding:12,borderRadius:12,background:'#0c1119',color:'#fff',border:'1px solid #2b3444'}} />)}
