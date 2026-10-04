@@ -26,6 +26,7 @@ public class MykAIPlugin extends Plugin {
     private static final int PORT = 8080;
     private Process process;
     private final StringBuilder recentLogs = new StringBuilder();
+    private volatile boolean serverModelLoaded = false;
 
     private String binaryPath() {
         return getContext().getApplicationInfo().nativeLibraryDir + "/libllamaserver.so";
@@ -94,6 +95,7 @@ public class MykAIPlugin extends Plugin {
         synchronized (recentLogs) {
             recentLogs.setLength(0);
         }
+        serverModelLoaded = false;
         process = builder.start();
 
         Thread logs = new Thread(() -> {
@@ -102,6 +104,9 @@ public class MykAIPlugin extends Plugin {
                 String line;
                 while ((line = r.readLine()) != null) {
                     Log.i(TAG, line);
+                    if (line.contains("model loaded")) {
+                        serverModelLoaded = true;
+                    }
                     synchronized (recentLogs) {
                         recentLogs.append(line).append('\n');
                         if (recentLogs.length() > 12000) {
@@ -120,7 +125,7 @@ public class MykAIPlugin extends Plugin {
             if (process == null || !process.isAlive()) {
                 throw new Exception("llama-server exited during startup");
             }
-            if (healthy()) return;
+            if (serverModelLoaded || healthy()) return;
             Thread.sleep(750);
         }
 
@@ -204,7 +209,7 @@ public class MykAIPlugin extends Plugin {
         }
         if (modelName.isEmpty()
                 || modelName.contains("/")
-                || modelName.contains("\\\\")
+                || modelName.contains("\\")
                 || !modelName.toLowerCase().endsWith(".gguf")) {
             call.reject("Please select a GGUF model first");
             return;
