@@ -123,6 +123,8 @@ export default function WebApp() {
     }
   };
 
+  const clearChat = () => setMessages([]);
+
   const row = (label: string, control: React.ReactNode) => (
     <div style={{padding: '14px 0', borderBottom: '1px solid #263044'}}>
       <div style={{fontWeight: 700, marginBottom: 8}}>{label}</div>
