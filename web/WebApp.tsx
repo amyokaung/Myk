@@ -11,10 +11,11 @@ interface EngineSettings {
 }
 
 const DEFAULT_SETTINGS: EngineSettings = {
-  contextSize: 1024,
+  // Mobile-friendly defaults: lower RAM use and shorter answers.
+  contextSize: 512,
   threads: 4,
-  temperature: 0.7,
-  maxTokens: 512,
+  temperature: 0.5,
+  maxTokens: 128,
   startupTimeoutSeconds: 600,
 };
 
