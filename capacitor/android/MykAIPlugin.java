@@ -103,8 +103,7 @@ public class MykAIPlugin extends Plugin {
                 while ((line = r.readLine()) != null) {
                     Log.i(TAG, line);
                     synchronized (recentLogs) {
-                        recentLogs.append(line).append('
-');
+                        recentLogs.append(line).append('\\n');
                         if (recentLogs.length() > 12000) {
                             recentLogs.delete(0, recentLogs.length() - 12000);
                         }
@@ -205,7 +204,7 @@ public class MykAIPlugin extends Plugin {
         }
         if (modelName.isEmpty()
                 || modelName.contains("/")
-                || modelName.contains("\")
+                || modelName.contains("\\\\")
                 || !modelName.toLowerCase().endsWith(".gguf")) {
             call.reject("Please select a GGUF model first");
             return;
