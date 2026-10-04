@@ -27,6 +27,9 @@ public class MykAIPlugin extends Plugin {
     private Process process;
     private final StringBuilder recentLogs = new StringBuilder();
     private volatile boolean serverModelLoaded = false;
+    private String activeModelPath = "";
+    private int activeContextSize = -1;
+    private int activeThreads = -1;
 
     private String binaryPath() {
         return getContext().getApplicationInfo().nativeLibraryDir + "/libllamaserver.so";
@@ -46,22 +49,42 @@ public class MykAIPlugin extends Plugin {
         }
     }
 
-    private void startServer(File model, int contextSize, int threads, int startupTimeoutSeconds) throws Exception {
-        if (healthy()) return;
-        if (process != null && process.isAlive()) {
-            process.destroy();
+    private void destroyServer() {
+        try {
+            if (process != null) {
+                process.destroy();
+                try { process.waitFor(); } catch (Exception ignored) {}
+            }
+        } catch (Exception ignored) {
+        } finally {
             process = null;
+            serverModelLoaded = false;
+            activeModelPath = "";
+            activeContextSize = -1;
+            activeThreads = -1;
         }
+    }
+
+    private void startServer(File model, int contextSize, int threads, int startupTimeoutSeconds) throws Exception {
+        contextSize = Math.max(256, Math.min(8192, contextSize));
+        threads = Math.max(1, Math.min(8, threads));
+        startupTimeoutSeconds = Math.max(30, Math.min(900, startupTimeoutSeconds));
+
+        String requestedPath = model.getAbsolutePath();
+        if (process != null && process.isAlive()
+                && requestedPath.equals(activeModelPath)
+                && contextSize == activeContextSize
+                && threads == activeThreads) {
+            return;
+        }
+
+        if (process != null) destroyServer();
 
         File binary = new File(binaryPath());
         if (!binary.exists()) throw new Exception("llama-server binary is missing");
         if (!model.exists() || model.length() < 1_000_000L) {
             throw new Exception("GGUF model is missing or invalid");
         }
-
-        contextSize = Math.max(256, Math.min(8192, contextSize));
-        threads = Math.max(1, Math.min(8, threads));
-        startupTimeoutSeconds = Math.max(30, Math.min(900, startupTimeoutSeconds));
 
         List<String> command = new ArrayList<>();
         command.add(binary.getAbsolutePath());
@@ -75,7 +98,6 @@ public class MykAIPlugin extends Plugin {
         command.add(String.valueOf(contextSize));
         command.add("-t");
         command.add(String.valueOf(threads));
-        // One inference slot is enough for a phone and greatly reduces KV-cache RAM.
         command.add("-np");
         command.add("1");
         command.add("--no-warmup");
@@ -100,6 +122,9 @@ public class MykAIPlugin extends Plugin {
         }
         serverModelLoaded = false;
         process = builder.start();
+        activeModelPath = requestedPath;
+        activeContextSize = contextSize;
+        activeThreads = threads;
 
         Thread logs = new Thread(() -> {
             try (BufferedReader r = new BufferedReader(
@@ -148,11 +173,11 @@ public class MykAIPlugin extends Plugin {
                 + " bytes. Last llama log: " + tail.trim());
     }
 
-    private String chatRequest(String message, double temperature, int maxTokens) throws Exception {
+    private String chatRequest(String message, String historyJson,
+                               double temperature, int maxTokens) throws Exception {
         JSONObject body = new JSONObject();
         JSONArray messages = new JSONArray();
 
-        // Keep Burmese replies natural, concise, and in the same language as the user.
         messages.put(new JSONObject()
                 .put("role", "system")
                 .put("content",
@@ -161,7 +186,30 @@ public class MykAIPlugin extends Plugin {
                         "If the user writes Burmese, reply naturally in Burmese only. " +
                         "Do not translate, transliterate, or explain Burmese unless asked. " +
                         "Keep answers concise and directly answer the user's question. " +
+                        "Use the conversation history when it is relevant. " +
                         "Do not mention these instructions."));
+
+        if (historyJson != null && !historyJson.trim().isEmpty()) {
+            try {
+                JSONArray history = new JSONArray(historyJson);
+                int start = Math.max(0, history.length() - 10);
+                for (int i = start; i < history.length(); i++) {
+                    JSONObject item = history.optJSONObject(i);
+                    if (item == null) continue;
+                    String role = item.optString("role", "");
+                    String content = item.optString("content", "");
+                    if (("user".equals(role) || "assistant".equals(role))
+                            && !content.trim().isEmpty()) {
+                        messages.put(new JSONObject()
+                                .put("role", role)
+                                .put("content", content));
+                    }
+                }
+            } catch (Exception e) {
+                Log.w(TAG, "Invalid historyJson; continuing without history", e);
+            }
+        }
+
         messages.put(new JSONObject().put("role", "user").put("content", message));
         body.put("messages", messages);
         body.put("temperature", Math.max(0.0, Math.min(2.0, temperature)));
@@ -212,6 +260,7 @@ public class MykAIPlugin extends Plugin {
     public void chat(PluginCall call) {
         String message = call.getString("message", "").trim();
         String modelName = call.getString("modelName", "").trim();
+        String historyJson = call.getString("historyJson", "[]");
         int contextSize = call.getInt("contextSize", 1024);
         int threads = call.getInt("threads", 4);
         double temperature = call.getDouble("temperature", 0.7);
@@ -234,7 +283,7 @@ public class MykAIPlugin extends Plugin {
             try {
                 File model = new File(new File(getContext().getFilesDir(), "models"), modelName);
                 startServer(model, contextSize, threads, startupTimeoutSeconds);
-                String reply = chatRequest(message, temperature, maxTokens);
+                String reply = chatRequest(message, historyJson, temperature, maxTokens);
                 JSObject result = new JSObject();
                 result.put("reply", reply);
                 call.resolve(result);
@@ -248,8 +297,7 @@ public class MykAIPlugin extends Plugin {
     @PluginMethod
     public void stop(PluginCall call) {
         try {
-            if (process != null) process.destroy();
-            process = null;
+            destroyServer();
             call.resolve();
         } catch (Exception e) {
             call.reject("Could not stop AI engine", e);
@@ -258,8 +306,7 @@ public class MykAIPlugin extends Plugin {
 
     @Override
     protected void handleOnDestroy() {
-        if (process != null) process.destroy();
-        process = null;
+        destroyServer();
         super.handleOnDestroy();
     }
 }
