@@ -1,5 +1,7 @@
 package com.myanmarofflineai.myk;
 
+import android.app.ActivityManager;
+import android.content.Context;
 import android.util.Log;
 import com.getcapacitor.JSObject;
 import com.getcapacitor.Plugin;
@@ -23,6 +25,7 @@ public class MykAIPlugin extends Plugin {
     private static final String TAG = "MykAI";
     private static final int PORT = 8080;
     private Process process;
+    private final StringBuilder recentLogs = new StringBuilder();
 
     private String binaryPath() {
         return getContext().getApplicationInfo().nativeLibraryDir + "/libllamaserver.so";
@@ -64,9 +67,9 @@ public class MykAIPlugin extends Plugin {
         command.add("--port");
         command.add(String.valueOf(PORT));
         command.add("-c");
-        command.add("2048");
+        command.add("1024");
         command.add("-t");
-        command.add(String.valueOf(Math.max(1, Math.min(8, Runtime.getRuntime().availableProcessors()))));
+        command.add(String.valueOf(Math.max(1, Math.min(4, Runtime.getRuntime().availableProcessors()))));
         command.add("--no-warmup");
 
         ProcessBuilder builder = new ProcessBuilder(command);
@@ -77,20 +80,19 @@ public class MykAIPlugin extends Plugin {
                 getContext().getApplicationInfo().nativeLibraryDir + ":/system/lib64:/system/lib"
         );
 
-        Log.i(TAG, "Starting llama-server");
-        process = builder.start();
+        ActivityManager am = (ActivityManager) getContext().getSystemService(Context.ACTIVITY_SERVICE);\n        ActivityManager.MemoryInfo memory = new ActivityManager.MemoryInfo();\n        if (am != null) am.getMemoryInfo(memory);\n        Log.i(TAG, "Starting llama-server model=" + model.getName() + " size=" + model.length() + " freeRam=" + memory.availMem);\n        synchronized (recentLogs) { recentLogs.setLength(0); }\n        process = builder.start();
 
         Thread logs = new Thread(() -> {
             try (BufferedReader r = new BufferedReader(
                     new InputStreamReader(process.getInputStream()))) {
                 String line;
-                while ((line = r.readLine()) != null) Log.i(TAG, line);
+                while ((line = r.readLine()) != null) {\n                        Log.i(TAG, line);\n                        synchronized (recentLogs) {\n                            recentLogs.append(line).append('\\n');\n                            if (recentLogs.length() > 12000) recentLogs.delete(0, recentLogs.length() - 12000);\n                        }\n                    }
             } catch (Exception ignored) {}
         });
         logs.setDaemon(true);
         logs.start();
 
-        long deadline = System.currentTimeMillis() + 180_000L;
+        long deadline = System.currentTimeMillis() + 600_000L;
         while (System.currentTimeMillis() < deadline) {
             if (process == null || !process.isAlive()) {
                 throw new Exception("llama-server exited during startup");
@@ -98,7 +100,7 @@ public class MykAIPlugin extends Plugin {
             if (healthy()) return;
             Thread.sleep(750);
         }
-        throw new Exception("AI engine startup timed out");
+        long freeRam = 0;\n        ActivityManager am = (ActivityManager) getContext().getSystemService(Context.ACTIVITY_SERVICE);\n        ActivityManager.MemoryInfo memory = new ActivityManager.MemoryInfo();\n        if (am != null) { am.getMemoryInfo(memory); freeRam = memory.availMem; }\n        String tail;\n        synchronized (recentLogs) { tail = recentLogs.toString(); }\n        throw new Exception("AI engine startup timed out after 10 minutes. Model=" + model.length() + " bytes, free RAM=" + freeRam + " bytes. Last llama log: " + tail.trim());
     }
 
     private String chatRequest(String message) throws Exception {
