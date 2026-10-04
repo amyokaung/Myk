@@ -106,6 +106,18 @@ jobs:
       - name: Sync Capacitor
         run: npx cap sync android
 
+      - name: Allow local AI HTTP loopback
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          p = Path("android/app/src/main/AndroidManifest.xml")
+          s = p.read_text()
+          if 'android:usesCleartextTraffic="true"' not in s:
+              s = s.replace("<application", '<application android:usesCleartextTraffic="true"', 1)
+              p.write_text(s)
+          PY
+          grep -n "usesCleartextTraffic" android/app/src/main/AndroidManifest.xml
+
       - name: Build Capacitor debug APK
         working-directory: android
         run: ./gradlew assembleDebug --no-daemon
