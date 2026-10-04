@@ -15,7 +15,7 @@ const DEFAULT_SETTINGS: EngineSettings = {
   contextSize: 512,
   threads: 4,
   temperature: 0.5,
-  maxTokens: 128,
+  maxTokens: 256,
   startupTimeoutSeconds: 600,
 };
 
