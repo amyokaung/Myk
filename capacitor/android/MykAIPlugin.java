@@ -45,7 +45,7 @@ public class MykAIPlugin extends Plugin {
         }
     }
 
-    private void startServer(File model) throws Exception {
+    private void startServer(File model, int contextSize, int threads, int startupTimeoutSeconds) throws Exception {
         if (healthy()) return;
         if (process != null && process.isAlive()) {
             process.destroy();
@@ -58,6 +58,10 @@ public class MykAIPlugin extends Plugin {
             throw new Exception("GGUF model is missing or invalid");
         }
 
+        contextSize = Math.max(256, Math.min(8192, contextSize));
+        threads = Math.max(1, Math.min(8, threads));
+        startupTimeoutSeconds = Math.max(30, Math.min(900, startupTimeoutSeconds));
+
         List<String> command = new ArrayList<>();
         command.add(binary.getAbsolutePath());
         command.add("-m");
@@ -67,9 +71,9 @@ public class MykAIPlugin extends Plugin {
         command.add("--port");
         command.add(String.valueOf(PORT));
         command.add("-c");
-        command.add("1024");
+        command.add(String.valueOf(contextSize));
         command.add("-t");
-        command.add(String.valueOf(Math.max(1, Math.min(4, Runtime.getRuntime().availableProcessors()))));
+        command.add(String.valueOf(threads));
         command.add("--no-warmup");
 
         ProcessBuilder builder = new ProcessBuilder(command);
@@ -84,7 +88,9 @@ public class MykAIPlugin extends Plugin {
         ActivityManager.MemoryInfo memory = new ActivityManager.MemoryInfo();
         if (am != null) am.getMemoryInfo(memory);
         Log.i(TAG, "Starting llama-server model=" + model.getName()
-                + " size=" + model.length() + " freeRam=" + memory.availMem);
+                + " size=" + model.length() + " freeRam=" + memory.availMem
+                + " context=" + contextSize + " threads=" + threads);
+
         synchronized (recentLogs) {
             recentLogs.setLength(0);
         }
@@ -97,7 +103,8 @@ public class MykAIPlugin extends Plugin {
                 while ((line = r.readLine()) != null) {
                     Log.i(TAG, line);
                     synchronized (recentLogs) {
-                        recentLogs.append(line).append('\n');
+                        recentLogs.append(line).append('
+');
                         if (recentLogs.length() > 12000) {
                             recentLogs.delete(0, recentLogs.length() - 12000);
                         }
@@ -109,7 +116,7 @@ public class MykAIPlugin extends Plugin {
         logs.setDaemon(true);
         logs.start();
 
-        long deadline = System.currentTimeMillis() + 600_000L;
+        long deadline = System.currentTimeMillis() + startupTimeoutSeconds * 1000L;
         while (System.currentTimeMillis() < deadline) {
             if (process == null || !process.isAlive()) {
                 throw new Exception("llama-server exited during startup");
@@ -129,17 +136,17 @@ public class MykAIPlugin extends Plugin {
         synchronized (recentLogs) {
             tail = recentLogs.toString();
         }
-        throw new Exception("AI engine startup timed out after 10 minutes. Model="
+        throw new Exception("AI engine startup timed out. Model="
                 + model.length() + " bytes, free RAM=" + freeRam
                 + " bytes. Last llama log: " + tail.trim());
     }
 
-    private String chatRequest(String message) throws Exception {
+    private String chatRequest(String message, double temperature, int maxTokens) throws Exception {
         JSONObject body = new JSONObject();
         body.put("messages", new JSONArray().put(
                 new JSONObject().put("role", "user").put("content", message)));
-        body.put("temperature", 0.7);
-        body.put("max_tokens", 512);
+        body.put("temperature", Math.max(0.0, Math.min(2.0, temperature)));
+        body.put("max_tokens", Math.max(16, Math.min(4096, maxTokens)));
         body.put("stream", false);
 
         HttpURLConnection c = (HttpURLConnection)
@@ -186,6 +193,11 @@ public class MykAIPlugin extends Plugin {
     public void chat(PluginCall call) {
         String message = call.getString("message", "").trim();
         String modelName = call.getString("modelName", "").trim();
+        int contextSize = call.getInt("contextSize", 1024);
+        int threads = call.getInt("threads", 4);
+        double temperature = call.getDouble("temperature", 0.7);
+        int maxTokens = call.getInt("maxTokens", 512);
+        int startupTimeoutSeconds = call.getInt("startupTimeoutSeconds", 600);
 
         if (message.isEmpty()) {
             call.reject("Message is empty");
@@ -193,7 +205,7 @@ public class MykAIPlugin extends Plugin {
         }
         if (modelName.isEmpty()
                 || modelName.contains("/")
-                || modelName.contains("\\")
+                || modelName.contains("\")
                 || !modelName.toLowerCase().endsWith(".gguf")) {
             call.reject("Please select a GGUF model first");
             return;
@@ -202,8 +214,8 @@ public class MykAIPlugin extends Plugin {
         new Thread(() -> {
             try {
                 File model = new File(new File(getContext().getFilesDir(), "models"), modelName);
-                startServer(model);
-                String reply = chatRequest(message);
+                startServer(model, contextSize, threads, startupTimeoutSeconds);
+                String reply = chatRequest(message, temperature, maxTokens);
                 JSObject result = new JSObject();
                 result.put("reply", reply);
                 call.resolve(result);

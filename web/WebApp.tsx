@@ -2,14 +2,39 @@ import React, {useEffect, useState} from 'react';
 import MykModel, {type ModelInfo} from './native/MykModel';
 import {registerPlugin} from '@capacitor/core';
 
+interface EngineSettings {
+  contextSize: number;
+  threads: number;
+  temperature: number;
+  maxTokens: number;
+  startupTimeoutSeconds: number;
+}
+
+const DEFAULT_SETTINGS: EngineSettings = {
+  contextSize: 1024,
+  threads: 4,
+  temperature: 0.7,
+  maxTokens: 512,
+  startupTimeoutSeconds: 600,
+};
+
 interface MykAIPlugin {
-  chat(options: {message: string; modelName: string}): Promise<{reply: string}>;
+  chat(options: {
+    message: string;
+    modelName: string;
+    contextSize?: number;
+    threads?: number;
+    temperature?: number;
+    maxTokens?: number;
+    startupTimeoutSeconds?: number;
+  }): Promise<{reply: string}>;
   stop(): Promise<void>;
 }
 
 const MykAI = registerPlugin<MykAIPlugin>('MykAI');
 
 type Tab = 'chat' | 'models' | 'settings';
+const SETTINGS_KEY = 'myk-engine-settings';
 
 export default function WebApp() {
   const [tab, setTab] = useState<Tab>('chat');
@@ -18,6 +43,24 @@ export default function WebApp() {
   const [modelName, setModelName] = useState('No GGUF model selected');
   const [models, setModels] = useState<ModelInfo[]>([]);
   const [busy, setBusy] = useState(false);
+  const [settings, setSettings] = useState<EngineSettings>(() => {
+    try {
+      const saved = localStorage.getItem(SETTINGS_KEY);
+      return saved ? {...DEFAULT_SETTINGS, ...JSON.parse(saved)} : DEFAULT_SETTINGS;
+    } catch {
+      return DEFAULT_SETTINGS;
+    }
+  });
+
+  const saveSettings = (next: EngineSettings) => {
+    setSettings(next);
+    localStorage.setItem(SETTINGS_KEY, JSON.stringify(next));
+  };
+
+  const resetSettings = () => {
+    setSettings(DEFAULT_SETTINGS);
+    localStorage.setItem(SETTINGS_KEY, JSON.stringify(DEFAULT_SETTINGS));
+  };
 
   const refreshModels = async () => {
     try {
@@ -61,7 +104,15 @@ export default function WebApp() {
     setBusy(true);
 
     try {
-      const result = await MykAI.chat({message: value, modelName: selected});
+      const result = await MykAI.chat({
+        message: value,
+        modelName: selected,
+        contextSize: settings.contextSize,
+        threads: settings.threads,
+        temperature: settings.temperature,
+        maxTokens: settings.maxTokens,
+        startupTimeoutSeconds: settings.startupTimeoutSeconds,
+      });
       setMessages(current => [...current, {role: 'assistant', text: result.reply || '(No response)'}]);
     } catch (error) {
       const text = error instanceof Error ? error.message : String(error);
@@ -70,6 +121,13 @@ export default function WebApp() {
       setBusy(false);
     }
   };
+
+  const row = (label: string, control: React.ReactNode) => (
+    <div style={{padding: '14px 0', borderBottom: '1px solid #263044'}}>
+      <div style={{fontWeight: 700, marginBottom: 8}}>{label}</div>
+      {control}
+    </div>
+  );
 
   return (
     <div style={{minHeight: '100vh', background: '#0b1020', color: '#f8fafc', fontFamily: 'system-ui, sans-serif'}}>
@@ -95,6 +153,9 @@ export default function WebApp() {
             <section style={{padding: 18, borderRadius: 16, background: '#121a2b', border: '1px solid #263044', marginBottom: 14}}>
               <div style={{fontWeight: 700}}>Local AI</div>
               <div style={{marginTop: 5, opacity: .65, fontSize: 13}}>{modelName}</div>
+              <div style={{marginTop: 8, opacity: .5, fontSize: 12}}>
+                Context {settings.contextSize} · Threads {settings.threads} · Max {settings.maxTokens}
+              </div>
             </section>
             <section style={{minHeight: 380, padding: 18, borderRadius: 16, background: '#0f172a', border: '1px solid #263044'}}>
               {messages.length === 0
@@ -135,12 +196,24 @@ export default function WebApp() {
 
         {tab === 'settings' && (
           <section style={{padding: 20, borderRadius: 16, background: '#121a2b', border: '1px solid #263044'}}>
-            <h2 style={{marginTop: 0}}>Settings</h2>
-            <p style={{opacity: .7}}>Myk runs locally. Network access is not required for the model once it is installed.</p>
-            <div style={{padding: 14, borderRadius: 10, background: '#0f172a', marginTop: 14}}>
-              <div style={{fontWeight: 700}}>Engine</div>
-              <div style={{opacity: .6, fontSize: 13, marginTop: 4}}>Capacitor Android + native llama.cpp bridge</div>
-            </div>
+            <h2 style={{marginTop: 0}}>AI Engine Settings</h2>
+            <p style={{opacity: .7}}>ဒီ setting တွေကို ဖုန်းထဲမှာပဲ သိမ်းထားပြီး APK ပြန် build လုပ်စရာမလိုဘဲ ပြောင်းနိုင်ပါတယ်။</p>
+            {row('Context Size', <select value={settings.contextSize} onChange={e => saveSettings({...settings, contextSize: Number(e.target.value)})} style={{width: '100%', padding: 12, borderRadius: 10, background: '#111827', color: '#fff'}}>
+              {[512, 1024, 2048, 4096].map(v => <option key={v} value={v}>{v}</option>)}
+            </select>)}
+            {row('CPU Threads', <select value={settings.threads} onChange={e => saveSettings({...settings, threads: Number(e.target.value)})} style={{width: '100%', padding: 12, borderRadius: 10, background: '#111827', color: '#fff'}}>
+              {[1,2,3,4,5,6,7,8].map(v => <option key={v} value={v}>{v}</option>)}
+            </select>)}
+            {row('Temperature', <input type="number" min="0" max="1.5" step="0.1" value={settings.temperature} onChange={e => saveSettings({...settings, temperature: Number(e.target.value)})} style={{width: '100%', boxSizing: 'border-box', padding: 12, borderRadius: 10, background: '#111827', color: '#fff', border: '1px solid #334155'}} />)}
+            {row('Max Tokens', <select value={settings.maxTokens} onChange={e => saveSettings({...settings, maxTokens: Number(e.target.value)})} style={{width: '100%', padding: 12, borderRadius: 10, background: '#111827', color: '#fff'}}>
+              {[128, 256, 512, 1024, 2048].map(v => <option key={v} value={v}>{v}</option>)}
+            </select>)}
+            {row('Startup Timeout', <select value={settings.startupTimeoutSeconds} onChange={e => saveSettings({...settings, startupTimeoutSeconds: Number(e.target.value)})} style={{width: '100%', padding: 12, borderRadius: 10, background: '#111827', color: '#fff'}}>
+              {[120, 300, 600].map(v => <option key={v} value={v}>{v / 60} minutes</option>)}
+            </select>)}
+            <button onClick={resetSettings} style={{marginTop: 18, padding: '12px 16px', borderRadius: 10, border: '1px solid #475569', background: '#1e293b', color: '#fff'}}>
+              Reset to Recommended
+            </button>
           </section>
         )}
       </main>
