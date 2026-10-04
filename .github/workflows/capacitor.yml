@@ -59,10 +59,13 @@ jobs:
 
           cmake --build cpp/llama-build --config Release --target llama-server -j2
 
+          test -x cpp/llama-build/bin/llama-server
           mkdir -p android/app/src/main/jniLibs/arm64-v8a
           cp cpp/llama-build/bin/llama-server android/app/src/main/jniLibs/arm64-v8a/libllamaserver.so
           cp "$ANDROID_NDK_HOME/toolchains/llvm/prebuilt/linux-x86_64/sysroot/usr/lib/aarch64-linux-android/libc++_shared.so" android/app/src/main/jniLibs/arm64-v8a/libc++_shared.so
           chmod 755 android/app/src/main/jniLibs/arm64-v8a/libllamaserver.so
+          file android/app/src/main/jniLibs/arm64-v8a/libllamaserver.so
+          ls -lh android/app/src/main/jniLibs/arm64-v8a/
 
       - name: Install Myk native bridges
         run: |
@@ -71,6 +74,29 @@ jobs:
           cp capacitor/android/MykAIPlugin.java android/app/src/main/java/com/myanmarofflineai/myk/MykAIPlugin.java
           cp capacitor/android/MainActivity.java android/app/src/main/java/com/myanmarofflineai/myk/MainActivity.java
 
+      - name: Force native library extraction
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+
+          p = Path("android/app/build.gradle")
+          s = p.read_text()
+          marker = "android {"
+          block = """android {
+              packagingOptions {
+                  jniLibs {
+                      useLegacyPackaging true
+                  }
+              }"""
+          if "useLegacyPackaging true" not in s:
+              if marker not in s:
+                  raise SystemExit("android block not found in app/build.gradle")
+              s = s.replace(marker, block, 1)
+              p.write_text(s)
+          PY
+
+          grep -n -A6 "packagingOptions" android/app/build.gradle
+
       - name: Sync Capacitor
         run: npx cap sync android
 
@@ -78,9 +104,13 @@ jobs:
         working-directory: android
         run: ./gradlew assembleDebug --no-daemon
 
-      - name: Verify APK
+      - name: Verify APK and llama-server packaging
         run: |
+          set -euxo pipefail
           test -f android/app/build/outputs/apk/debug/app-debug.apk
+          test -s android/app/src/main/jniLibs/arm64-v8a/libllamaserver.so
+          unzip -l android/app/build/outputs/apk/debug/app-debug.apk | grep 'lib/arm64-v8a/libllamaserver.so'
+          unzip -l android/app/build/outputs/apk/debug/app-debug.apk | grep 'lib/arm64-v8a/libc++_shared.so'
           ls -lh android/app/build/outputs/apk/debug/app-debug.apk
 
       - name: Upload APK
