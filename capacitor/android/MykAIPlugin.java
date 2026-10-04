@@ -173,7 +173,7 @@ public class MykAIPlugin extends Plugin {
                 + " bytes. Last llama log: " + tail.trim());
     }
 
-    private String chatRequest(String message, String historyJson,
+    private String chatRequest(String message, String modelName, String historyJson,
                                double temperature, int maxTokens) throws Exception {
         JSONObject body = new JSONObject();
         JSONArray messages = new JSONArray();
@@ -215,6 +215,15 @@ public class MykAIPlugin extends Plugin {
         body.put("temperature", Math.max(0.0, Math.min(2.0, temperature)));
         body.put("max_tokens", Math.max(16, Math.min(2048, maxTokens)));
         body.put("stream", false);
+
+        // Qwen3 defaults to thinking mode. On a phone this can add substantial
+        // latency and consume the generation budget before the actual answer.
+        // Disable it for normal chat; users can still use larger models for
+        // harder tasks without paying the thinking overhead on every message.
+        if (modelName.toLowerCase().startsWith("qwen3-")) {
+            body.put("chat_template_kwargs", new JSONObject()
+                    .put("enable_thinking", false));
+        }
 
         HttpURLConnection c = (HttpURLConnection)
                 new URL("http://127.0.0.1:" + PORT + "/v1/chat/completions").openConnection();
@@ -283,7 +292,7 @@ public class MykAIPlugin extends Plugin {
             try {
                 File model = new File(new File(getContext().getFilesDir(), "models"), modelName);
                 startServer(model, contextSize, threads, startupTimeoutSeconds);
-                String reply = chatRequest(message, historyJson, temperature, maxTokens);
+                String reply = chatRequest(message, modelName, historyJson, temperature, maxTokens);
                 JSObject result = new JSObject();
                 result.put("reply", reply);
                 call.resolve(result);
