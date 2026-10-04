@@ -2,6 +2,8 @@ import React, {useEffect, useState} from 'react';
 import MykModel, {type ModelInfo} from './native/MykModel';
 import {registerPlugin} from '@capacitor/core';
 import {MODEL_CATALOG, formatModelSize, type DownloadableModel} from './modelCatalog';
+import LearningLab from './LearningLab';
+import {loadLearningExamples} from './learning';
 
 interface EngineSettings {
   contextSize: number;
@@ -34,6 +36,7 @@ interface MykAIPlugin {
     temperature?: number;
     maxTokens?: number;
     startupTimeoutSeconds?: number;
+    learnedContext?: string;
   }): Promise<{reply: string}>;
   stop(): Promise<void>;
 }
@@ -47,8 +50,9 @@ interface MykModelDownloadPlugin {
 const MykAI = registerPlugin<MykAIPlugin>('MykAI');
 const MykModelDownload = registerPlugin<MykModelDownloadPlugin>('MykModel');
 
-type Tab = 'chat' | 'models' | 'settings';
+type Tab = 'chat' | 'learn' | 'models' | 'settings';
 const SETTINGS_KEY = 'myk-engine-settings';
+const GEMINI_KEY = 'myk-gemini-api-key';
 
 export default function WebApp() {
   const [tab, setTab] = useState<Tab>('chat');
@@ -58,6 +62,7 @@ export default function WebApp() {
   const [models, setModels] = useState<ModelInfo[]>([]);
   const [busy, setBusy] = useState(false);
   const [copiedIndex, setCopiedIndex] = useState<number | null>(null);
+  const [geminiApiKey, setGeminiApiKey] = useState(() => localStorage.getItem(GEMINI_KEY) || '');
   const [downloadingId, setDownloadingId] = useState<string | null>(null);
   const [downloadBytes, setDownloadBytes] = useState(0);
   const [downloadTotal, setDownloadTotal] = useState(0);
@@ -183,6 +188,8 @@ export default function WebApp() {
     if (!selected) return;
 
     const history = messages.slice(-10);
+    const approvedLearning = loadLearningExamples().filter(x => x.status === 'approved').slice(0, 30);
+    const learnedContext = approvedLearning.map(x => `Q: ${x.question}\nA: ${x.idealAnswer}`).join('\n\n').slice(0, 7000);
     const historyJson = JSON.stringify(history.map(item => ({
       role: item.role,
       content: item.text,
@@ -202,6 +209,7 @@ export default function WebApp() {
         temperature: settings.temperature,
         maxTokens: settings.maxTokens,
         startupTimeoutSeconds: settings.startupTimeoutSeconds,
+        learnedContext,
       });
       setMessages(current => [...current, {role: 'assistant', text: result.reply || '(No response)'}]);
     } catch (error) {
@@ -271,6 +279,16 @@ export default function WebApp() {
           </section>
         )}
 
+        {tab === 'learn' && (
+          <LearningLab
+            modelName={modelName}
+            modelsCount={models.length}
+            settings={settings}
+            geminiApiKey={geminiApiKey}
+            onGeminiKeyNeeded={() => setTab('settings')}
+          />
+        )}
+
         {tab === 'models' && (
           <section style={{margin:'22px 15px 110px',padding:18,borderRadius:20,background:'#10151f',border:'1px solid #202837'}}>
             <div style={{fontSize:24,fontWeight:800}}>Models</div>
@@ -304,6 +322,17 @@ export default function WebApp() {
         {tab === 'settings' && (
           <section style={{margin:'22px 15px 110px',padding:18,borderRadius:20,background:'#10151f',border:'1px solid #202837'}}>
             <div style={{fontSize:24,fontWeight:800}}>Settings</div>
+            <div style={{marginTop:16,padding:15,borderRadius:16,background:'linear-gradient(145deg,#15142a,#0c1119)',border:'1px solid #2c2a4a'}}>
+              <div style={{fontSize:10,color:'#9a92ff',fontWeight:800,letterSpacing:1}}>LEARNING LAB · GEMINI</div>
+              <div style={{fontSize:16,fontWeight:800,marginTop:5}}>Gemini API Key</div>
+              <div style={{fontSize:11,color:'#7f899b',marginTop:5,lineHeight:1.5}}>Learning Lab ရဲ့ Teacher / Judge အတွက် သီးသန့်သုံးမယ့် key ပါ။ ပုံမှန် Chat က Gemini ကို မခေါ်ပါ။</div>
+              <input type="password" value={geminiApiKey} onChange={e=>{setGeminiApiKey(e.target.value);localStorage.setItem(GEMINI_KEY,e.target.value)}} placeholder="AIza..." autoComplete="off" style={{width:'100%',boxSizing:'border-box',marginTop:11,padding:12,borderRadius:11,border:'1px solid #30384a',background:'#080d15',color:'#fff',outline:0}} />
+              <div style={{display:'flex',gap:8,marginTop:9}}>
+                <button onClick={()=>{localStorage.setItem(GEMINI_KEY,geminiApiKey.trim());setGeminiApiKey(geminiApiKey.trim());}} style={{flex:1,padding:9,borderRadius:10,border:0,background:'#6558e8',color:'#fff',fontWeight:750}}>Save Key</button>
+                <button onClick={()=>{setGeminiApiKey('');localStorage.removeItem(GEMINI_KEY)}} style={{padding:'9px 12px',borderRadius:10,border:'1px solid #3a3038',background:'#181319',color:'#ff9fa8'}}>Clear</button>
+              </div>
+              <div style={{fontSize:9,color:'#697386',marginTop:9,lineHeight:1.5}}>Key ကို GitHub/source code ထဲ မထည့်ထားပါ။ ဒီဖုန်းရဲ့ local storage ထဲမှာပဲ သိမ်းထားပါတယ်။</div>
+            </div>
             <p style={{color:'#8993a6',fontSize:13,lineHeight:1.6}}>AI engine ကို ဒီဖုန်းထဲမှာပဲ ချိန်ညှိနိုင်ပါတယ်။ Model သို့မဟုတ် engine setting ပြောင်းပြီးနောက် နောက်မေးခွန်းမှာ server ကို အလိုအလျောက် restart လုပ်ပေးပါမယ်။</p>
             {row('Context Size', <select value={settings.contextSize} onChange={e=>saveSettings({...settings,contextSize:Number(e.target.value)})} style={{width:'100%',padding:12,borderRadius:12,background:'#0c1119',color:'#fff',border:'1px solid #2b3444'}}>{[512,1024,2048,4096].map(v=><option key={v} value={v}>{v}</option>)}</select>)}
             {row('CPU Threads', <select value={settings.threads} onChange={e=>saveSettings({...settings,threads:Number(e.target.value)})} style={{width:'100%',padding:12,borderRadius:12,background:'#0c1119',color:'#fff',border:'1px solid #2b3444'}}>{[1,2,3,4,5,6,7,8].map(v=><option key={v} value={v}>{v}</option>)}</select>)}
@@ -324,7 +353,7 @@ export default function WebApp() {
       </div>}
 
       <nav style={{position:'fixed',bottom:76,left:'50%',transform:'translateX(-50%)',display:'flex',gap:4,padding:6,borderRadius:18,border:'1px solid #202837',background:'#0c1018',zIndex:9,boxShadow:'0 8px 30px rgba(0,0,0,.28)'}}>
-        {(['chat','models','settings'] as Tab[]).map(item=><button key={item} onClick={()=>setTab(item)} style={{padding:'8px 12px',border:0,borderRadius:12,background:tab===item?'#1a2030':'transparent',color:tab===item?'#f5f7fb':'#7f899b',fontSize:12}}>{item==='chat'?'⌁ Chat':item==='models'?'◈ Models':'⚙ Settings'}</button>)}
+        {(['chat','learn','models','settings'] as Tab[]).map(item=><button key={item} onClick={()=>setTab(item)} style={{padding:'8px 12px',border:0,borderRadius:12,background:tab===item?'#1a2030':'transparent',color:tab===item?'#f5f7fb':'#7f899b',fontSize:12}}>{item==='chat'?'⌁ Chat':item==='learn'?'✦ Learn':item==='models'?'◈ Models':'⚙ Settings'}</button>)}
       </nav>
     </div>
   );
