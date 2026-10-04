@@ -4,6 +4,7 @@ import android.content.Intent;
 import android.database.Cursor;
 import android.net.Uri;
 import android.provider.OpenableColumns;
+import android.os.StatFs;
 
 import androidx.activity.result.ActivityResult;
 
@@ -96,6 +97,15 @@ public class MykModelPlugin extends Plugin {
 
         File target = new File(dir, name);
         File partial = new File(dir, name + ".part");
+
+        if (expectedSize != null && expectedSize > 0) {
+            long freeBytes = new StatFs(dir.getAbsolutePath()).getAvailableBytes();
+            long requiredBytes = expectedSize + (512L * 1024L * 1024L);
+            if (freeBytes < requiredBytes) {
+                call.reject("Not enough free storage. Need about " + formatGb(requiredBytes) + " free.");
+                return;
+            }
+        }
         if (target.exists() && target.length() > 0) {
             JSObject ret = new JSObject();
             ret.put("name", target.getName());
@@ -215,10 +225,14 @@ public class MykModelPlugin extends Plugin {
         call.resolve();
     }
 
+    private String formatGb(long bytes) {
+        return String.format(java.util.Locale.US, "%.1f GB", bytes / (1024.0 * 1024.0 * 1024.0));
+    }
+
     private boolean isSafeModelName(String name) {
         return name != null
                 && !name.contains("/")
-                && !name.contains("\\\\")
+                && !name.contains("\\")
                 && name.toLowerCase().endsWith(".gguf");
     }
 
