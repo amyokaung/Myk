@@ -1,6 +1,7 @@
 import React, {useEffect, useState} from 'react';
 import MykModel, {type ModelInfo} from './native/MykModel';
 import {registerPlugin} from '@capacitor/core';
+import {MODEL_CATALOG, formatModelSize, type DownloadableModel} from './modelCatalog';
 
 interface EngineSettings {
   contextSize: number;
@@ -37,7 +38,14 @@ interface MykAIPlugin {
   stop(): Promise<void>;
 }
 
+interface MykModelDownloadPlugin {
+  downloadModel(options: {name: string; url: string; sizeBytes: number}): Promise<{started: boolean}>;
+  getDownloadStatus(): Promise<{downloading: boolean; cancelled: boolean; name: string; bytes: number; total: number; error: string}>;
+  cancelDownload(): Promise<void>;
+}
+
 const MykAI = registerPlugin<MykAIPlugin>('MykAI');
+const MykModelDownload = registerPlugin<MykModelDownloadPlugin>('MykModel');
 
 type Tab = 'chat' | 'models' | 'settings';
 const SETTINGS_KEY = 'myk-engine-settings';
@@ -50,6 +58,10 @@ export default function WebApp() {
   const [models, setModels] = useState<ModelInfo[]>([]);
   const [busy, setBusy] = useState(false);
   const [copiedIndex, setCopiedIndex] = useState<number | null>(null);
+  const [downloadingId, setDownloadingId] = useState<string | null>(null);
+  const [downloadBytes, setDownloadBytes] = useState(0);
+  const [downloadTotal, setDownloadTotal] = useState(0);
+  const [downloadError, setDownloadError] = useState('');
   const [settings, setSettings] = useState<EngineSettings>(() => {
     try {
       const saved = localStorage.getItem(SETTINGS_KEY);
@@ -83,6 +95,47 @@ export default function WebApp() {
   };
 
   useEffect(() => { refreshModels(); }, []);
+
+  useEffect(() => {
+    if (!downloadingId) return;
+    let stopped = false;
+    const poll = async () => {
+      try {
+        const status = await MykModelDownload.getDownloadStatus();
+        if (stopped) return;
+        setDownloadBytes(status.bytes || 0);
+        setDownloadTotal(status.total || 0);
+        if (status.error) setDownloadError(status.error);
+        if (!status.downloading) {
+          setDownloadingId(null);
+          if (!status.error && !status.cancelled) await refreshModels();
+        }
+      } catch (e) {
+        if (!stopped) setDownloadError(e instanceof Error ? e.message : String(e));
+      }
+    };
+    poll();
+    const timer = window.setInterval(poll, 700);
+    return () => { stopped = true; window.clearInterval(timer); };
+  }, [downloadingId]);
+
+  const downloadModel = async (model: DownloadableModel) => {
+    if (downloadingId) return;
+    setDownloadError('');
+    setDownloadBytes(0);
+    setDownloadTotal(model.sizeBytes);
+    setDownloadingId(model.id);
+    try {
+      await MykModelDownload.downloadModel({name: model.filename, url: model.url, sizeBytes: model.sizeBytes});
+    } catch (error) {
+      setDownloadError(error instanceof Error ? error.message : String(error));
+      setDownloadingId(null);
+    }
+  };
+
+  const cancelModelDownload = async () => {
+    await MykModelDownload.cancelDownload().catch(() => {});
+  };
 
   const pickModel = async () => {
     setBusy(true);
@@ -228,7 +281,23 @@ export default function WebApp() {
               <div style={{fontSize:11,color:'#7f899b',marginTop:6}}>{models.length} local model{models.length===1?'':'s'}</div>
             </div>
             {models.map(model=><button key={model.name} onClick={()=>setModelName(model.name)} style={{display:'block',width:'100%',textAlign:'left',marginTop:10,padding:14,borderRadius:15,background:'#0c1119',border:model.name===modelName?'1px solid #6658e8':'1px solid #202837',color:'#f5f7fb'}}><div style={{fontSize:13,fontWeight:650,wordBreak:'break-word'}}>{model.name}</div><div style={{fontSize:11,color:'#7f899b',marginTop:5}}>{(model.size/1024/1024).toFixed(1)} MB {model.name===modelName?'· Active · Tap to select':''}</div></button>)}
-            <button onClick={pickModel} disabled={busy} style={{marginTop:14,width:'100%',padding:13,border:0,borderRadius:13,background:'linear-gradient(135deg,#7c5cff,#4f8cff)',color:'#fff',fontWeight:750}}>{busy?'Opening…':'+ Add / Select GGUF Model'}</button>
+            <div style={{marginTop:20,fontSize:16,fontWeight:800}}>Recommended downloads</div>
+            <div style={{fontSize:12,color:'#7f899b',marginTop:5,lineHeight:1.5}}>App ထဲကနေ တိုက်ရိုက် download လုပ်ပြီး GGUF model ကို အလိုအလျောက်ထည့်နိုင်ပါတယ်။</div>
+            {MODEL_CATALOG.map(model=>{
+              const installed=models.some(x=>x.name===model.filename);
+              const active=installed && modelName===model.filename;
+              const downloading=downloadingId===model.id;
+              const pct=downloadTotal>0 ? Math.min(100, Math.round(downloadBytes/downloadTotal*100)) : 0;
+              return <div key={model.id} style={{marginTop:10,padding:14,borderRadius:15,background:'#0c1119',border:active?'1px solid #6658e8':'1px solid #202837'}}>
+                <div style={{display:'flex',justifyContent:'space-between',gap:8,alignItems:'flex-start'}}><div><div style={{fontSize:13,fontWeight:700}}>{model.name}</div><div style={{fontSize:11,color:'#7f899b',marginTop:5}}>{formatModelSize(model.sizeBytes)} · {model.description}</div></div>{model.recommended&&<span style={{fontSize:9,padding:'4px 7px',borderRadius:8,background:'#182238',color:'#9daeff'}}>Recommended</span>}</div>
+                <div style={{display:'flex',flexWrap:'wrap',gap:5,marginTop:9}}>{model.tags.map(tag=><span key={tag} style={{fontSize:9,padding:'4px 7px',borderRadius:7,background:'#151b26',color:'#8f9aad'}}>{tag}</span>)}</div>
+                {downloading ? <div style={{marginTop:11}}><div style={{height:6,borderRadius:9,background:'#202837',overflow:'hidden'}}><div style={{height:'100%',width:pct+'%',background:'linear-gradient(90deg,#7c5cff,#4f8cff)'}}/></div><div style={{display:'flex',justifyContent:'space-between',marginTop:7,fontSize:10,color:'#8f9aad'}}><span>{formatModelSize(downloadBytes)} / {formatModelSize(downloadTotal)} · {pct}%</span><button onClick={cancelModelDownload} style={{border:0,background:'transparent',color:'#ff8b8b'}}>Cancel</button></div></div>
+                : installed ? <button onClick={()=>setModelName(model.filename)} style={{marginTop:11,width:'100%',padding:10,borderRadius:10,border:active?'1px solid #6658e8':'1px solid #30394a',background:active?'#1a1835':'#151b26',color:'#fff',fontWeight:700}}>{active?'✓ Active':'Use this model'}</button>
+                : <button onClick={()=>downloadModel(model)} disabled={!!downloadingId} style={{marginTop:11,width:'100%',padding:10,border:0,borderRadius:10,background:downloadingId?'#202837':'linear-gradient(135deg,#7c5cff,#4f8cff)',color:'#fff',fontWeight:700}}>↓ Download {formatModelSize(model.sizeBytes)}</button>}
+              </div>;
+            })}
+            {downloadError && <div style={{marginTop:12,padding:11,borderRadius:10,background:'#29161a',border:'1px solid #54242c',color:'#ff9da7',fontSize:11}}>❌ {downloadError}</div>}
+            <button onClick={pickModel} disabled={busy || !!downloadingId} style={{marginTop:14,width:'100%',padding:13,border:0,borderRadius:13,background:'#151b26',borderColor:'#30394a',color:'#d6dce7',fontWeight:750}}>{busy?'Opening…':'+ Import GGUF from phone'}</button>
           </section>
         )}
 
