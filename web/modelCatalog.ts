@@ -77,7 +77,7 @@ export const MODEL_CATALOG: DownloadableModel[] = [
     sizeBytes: 5300000000,
     description: 'Burmese-first assistant။ Myanmar context, Burmese intent နဲ့ assistant workflow တွေအတွက် အထူးပြုထားသည်။ 8GB RAM မှာ Heavy/Experimental။',
     tags: ['Burmese-first', '7B', '5.3 GB', 'Experimental'],
-    recommended: true,
+    recommended: false,
     url: 'https://huggingface.co/mradermacher/ai4burmese-padauk-GGUF/resolve/main/ai4burmese-padauk.Q4_K_M.gguf',
   },
   {
@@ -87,7 +87,7 @@ export const MODEL_CATALOG: DownloadableModel[] = [
     sizeBytes: 5030000000,
     description: 'ပိုကြီးတဲ့ general-purpose model။ Reasoning/conversation quality ပိုလိုချင်ရင် စမ်းနိုင်ပေမယ့် 8GB RAM မှာ Heavy။',
     tags: ['8B', '5.0 GB', 'Better Reasoning', 'Heavy'],
-    recommended: true,
+    recommended: false,
     url: 'https://huggingface.co/Qwen/Qwen3-8B-GGUF/resolve/main/Qwen3-8B-Q4_K_M.gguf',
   },
 ];
