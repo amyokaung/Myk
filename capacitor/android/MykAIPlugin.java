@@ -83,8 +83,11 @@ public class MykAIPlugin extends Plugin {
         ActivityManager am = (ActivityManager) getContext().getSystemService(Context.ACTIVITY_SERVICE);
         ActivityManager.MemoryInfo memory = new ActivityManager.MemoryInfo();
         if (am != null) am.getMemoryInfo(memory);
-        Log.i(TAG, "Starting llama-server model=" + model.getName() + " size=" + model.length() + " freeRam=" + memory.availMem);
-        synchronized (recentLogs) { recentLogs.setLength(0); }
+        Log.i(TAG, "Starting llama-server model=" + model.getName()
+                + " size=" + model.length() + " freeRam=" + memory.availMem);
+        synchronized (recentLogs) {
+            recentLogs.setLength(0);
+        }
         process = builder.start();
 
         Thread logs = new Thread(() -> {
@@ -92,14 +95,16 @@ public class MykAIPlugin extends Plugin {
                     new InputStreamReader(process.getInputStream()))) {
                 String line;
                 while ((line = r.readLine()) != null) {
-                        Log.i(TAG, line);
-                        synchronized (recentLogs) {
-                            recentLogs.append(line).append('\
-');
-                            if (recentLogs.length() > 12000) recentLogs.delete(0, recentLogs.length() - 12000);
+                    Log.i(TAG, line);
+                    synchronized (recentLogs) {
+                        recentLogs.append(line).append('\n');
+                        if (recentLogs.length() > 12000) {
+                            recentLogs.delete(0, recentLogs.length() - 12000);
                         }
                     }
-            } catch (Exception ignored) {}
+                }
+            } catch (Exception ignored) {
+            }
         });
         logs.setDaemon(true);
         logs.start();
@@ -112,13 +117,21 @@ public class MykAIPlugin extends Plugin {
             if (healthy()) return;
             Thread.sleep(750);
         }
+
         long freeRam = 0;
-        ActivityManager am = (ActivityManager) getContext().getSystemService(Context.ACTIVITY_SERVICE);
-        ActivityManager.MemoryInfo memory = new ActivityManager.MemoryInfo();
-        if (am != null) { am.getMemoryInfo(memory); freeRam = memory.availMem; }
+        am = (ActivityManager) getContext().getSystemService(Context.ACTIVITY_SERVICE);
+        memory = new ActivityManager.MemoryInfo();
+        if (am != null) {
+            am.getMemoryInfo(memory);
+            freeRam = memory.availMem;
+        }
         String tail;
-        synchronized (recentLogs) { tail = recentLogs.toString(); }
-        throw new Exception("AI engine startup timed out after 10 minutes. Model=" + model.length() + " bytes, free RAM=" + freeRam + " bytes. Last llama log: " + tail.trim());
+        synchronized (recentLogs) {
+            tail = recentLogs.toString();
+        }
+        throw new Exception("AI engine startup timed out after 10 minutes. Model="
+                + model.length() + " bytes, free RAM=" + freeRam
+                + " bytes. Last llama log: " + tail.trim());
     }
 
     private String chatRequest(String message) throws Exception {
@@ -158,7 +171,9 @@ public class MykAIPlugin extends Plugin {
 
         JSONObject response = new JSONObject(raw.toString());
         JSONArray choices = response.optJSONArray("choices");
-        if (choices == null || choices.length() == 0) throw new Exception("AI returned no choices");
+        if (choices == null || choices.length() == 0) {
+            throw new Exception("AI returned no choices");
+        }
 
         JSONObject choice = choices.getJSONObject(0);
         JSONObject msg = choice.optJSONObject("message");
