@@ -1,6 +1,7 @@
 import React, {useEffect, useState} from 'react';
 import MykModel, {type ModelInfo} from './native/MykModel';
 import MykAI from './native/MykAI';
+import {registerPlugin} from '@capacitor/core';
 import {MODEL_CATALOG, formatModelSize, type DownloadableModel} from './modelCatalog';
 import LearningLab from './LearningLab';
 import {loadLearningExamples} from './learning';
