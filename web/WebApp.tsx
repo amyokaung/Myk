@@ -131,93 +131,87 @@ export default function WebApp() {
   );
 
   return (
-    <div style={{minHeight: '100vh', background: '#0b1020', color: '#f8fafc', fontFamily: 'system-ui, sans-serif'}}>
-      <header style={{padding: '18px 20px', borderBottom: '1px solid #263044', display: 'flex', justifyContent: 'space-between', alignItems: 'center'}}>
-        <strong style={{fontSize: 24}}>Myk</strong>
-        <span style={{opacity: .65, fontSize: 13}}>Myanmar Offline AI</span>
+    <div style={{minHeight:'100vh',background:'#080b12',color:'#f5f7fb',fontFamily:'system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif'}}>
+      <header style={{height:64,padding:'0 16px',display:'flex',alignItems:'center',justifyContent:'space-between',borderBottom:'1px solid #1d2330',background:'#080b12',position:'sticky',top:0,zIndex:10}}>
+        <div style={{display:'flex',alignItems:'center',gap:10}}>
+          <div style={{width:38,height:38,borderRadius:12,display:'grid',placeItems:'center',background:'linear-gradient(135deg,#7c5cff,#4f8cff)',fontWeight:900}}>M</div>
+          <div><div style={{fontSize:17,fontWeight:800}}>Myk</div><div style={{fontSize:10,color:'#8993a6'}}>Myanmar Offline AI</div></div>
+        </div>
+        <div style={{display:'flex',gap:7}}>
+          {messages.length > 0 && <button onClick={clearChat} style={{width:38,height:38,borderRadius:11,border:'1px solid #252c3a',background:'#111620',color:'#b9c2d3'}}>⌫</button>}
+          <button onClick={()=>setTab('settings')} style={{width:38,height:38,borderRadius:11,border:'1px solid #252c3a',background:'#111620',color:'#b9c2d3'}}>⚙</button>
+        </div>
       </header>
 
-      <nav style={{display: 'flex', gap: 8, padding: '12px 20px', borderBottom: '1px solid #263044', background: '#0f172a'}}>
-        {(['chat', 'models', 'settings'] as Tab[]).map(item => (
-          <button key={item} onClick={() => setTab(item)} style={{
-            flex: 1, padding: '11px 8px', borderRadius: 10, border: '1px solid #334155',
-            background: tab === item ? '#1e293b' : 'transparent', color: '#f8fafc'
-          }}>
-            {item === 'chat' ? '💬 Chat' : item === 'models' ? '🧠 Models' : '⚙️ Settings'}
-          </button>
-        ))}
-      </nav>
-
-      <main style={{maxWidth: 900, margin: '0 auto', padding: 20}}>
+      <main style={{maxWidth:920,margin:'0 auto',minHeight:'calc(100vh - 64px)'}}>
         {tab === 'chat' && (
-          <>
-            <section style={{padding: 18, borderRadius: 16, background: '#121a2b', border: '1px solid #263044', marginBottom: 14}}>
-              <div style={{fontWeight: 700}}>Local AI</div>
-              <div style={{marginTop: 5, opacity: .65, fontSize: 13}}>{modelName}</div>
-              <div style={{marginTop: 8, opacity: .5, fontSize: 12}}>
-                Context {settings.contextSize} · Threads {settings.threads} · Max {settings.maxTokens}
+          <section style={{padding:'18px 15px 145px'}}>
+            {messages.length === 0 ? (
+              <div style={{minHeight:'62vh',display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',textAlign:'center'}}>
+                <div style={{width:68,height:68,borderRadius:22,display:'grid',placeItems:'center',background:'linear-gradient(135deg,#7c5cff,#4f8cff)',fontSize:30,fontWeight:900,boxShadow:'0 14px 40px rgba(92,92,255,.2)'}}>M</div>
+                <div style={{fontSize:27,fontWeight:800,marginTop:18}}>မင်္ဂလာပါ 👋</div>
+                <div style={{fontSize:14,color:'#8e98aa',lineHeight:1.7,marginTop:7}}>Myk ကို မေးလိုတာ မေးနိုင်ပါတယ်။<br/>အင်တာနက်မလိုဘဲ ဒီဖုန်းထဲမှာပဲ အလုပ်လုပ်ပါတယ်။</div>
+                <div style={{marginTop:18,padding:'8px 12px',borderRadius:12,border:'1px solid #202837',background:'#0e131c',fontSize:11,color:'#aeb8ca'}}>
+                  <span style={{display:'inline-block',width:7,height:7,borderRadius:99,background:'#35d07f',marginRight:7}}/>
+                  {modelName === 'No GGUF model selected' ? 'Model မရွေးရသေးပါ' : modelName}
+                </div>
+                <div style={{display:'flex',flexWrap:'wrap',justifyContent:'center',gap:8,marginTop:20}}>
+                  {['မြန်မာလို မေးမယ်','အကြောင်းအရာ ရှင်းပြပါ','စာရေးပေးပါ'].map(x=><button key={x} onClick={()=>setMessage(x)} style={{padding:'9px 13px',borderRadius:20,border:'1px solid #252d3b',background:'#10151f',color:'#b9c3d4',fontSize:12}}>{x}</button>)}
+                </div>
               </div>
-            </section>
-            <section style={{minHeight: 380, padding: 18, borderRadius: 16, background: '#0f172a', border: '1px solid #263044'}}>
-              {messages.length === 0
-                ? <div style={{opacity: .55, textAlign: 'center', paddingTop: 140}}>Your offline conversation will appear here.</div>
-                : messages.map((item, i) => (
-                    <div key={i} style={{padding: '11px 14px', marginBottom: 10, background: item.role === 'user' ? '#1e293b' : '#172554', borderRadius: 12}}>
-                      <div style={{fontSize: 11, opacity: .55, marginBottom: 4}}>{item.role === 'user' ? 'You' : 'Myk'}</div>
-                      {item.text}
-                    </div>
-                  ))}
-              {busy && <div style={{opacity: .65, padding: 10}}>Myk is thinking…</div>}
-            </section>
-            <div style={{display: 'flex', gap: 8, marginTop: 12}}>
-              <input value={message} onChange={e => setMessage(e.target.value)} onKeyDown={e => e.key === 'Enter' && send()}
-                placeholder="မြန်မာလို မေးခွန်းရေးပါ…" style={{flex: 1, minWidth: 0, padding: 14, borderRadius: 12, border: '1px solid #334155', background: '#111827', color: '#fff'}} />
-              <button onClick={send} disabled={busy} style={{padding: '0 20px', border: 0, borderRadius: 12, fontWeight: 700}}>
-                {busy ? '…' : 'Send'}
-              </button>
-            </div>
-          </>
+            ) : messages.map((item,i)=>item.role==='user' ? (
+              <div key={i} style={{display:'flex',justifyContent:'flex-end',margin:'18px 0'}}>
+                <div style={{maxWidth:'82%',padding:'12px 15px',borderRadius:'18px 18px 5px 18px',background:'#6d5dfc',lineHeight:1.65,fontSize:14,whiteSpace:'pre-wrap'}}>{item.text}</div>
+              </div>
+            ) : (
+              <div key={i} style={{display:'flex',gap:10,margin:'20px 0'}}>
+                <div style={{width:30,height:30,flex:'0 0 30px',borderRadius:10,display:'grid',placeItems:'center',background:'#171d29',border:'1px solid #2a3342',fontWeight:800,fontSize:12}}>M</div>
+                <div style={{maxWidth:'84%',color:'#e3e8f0',lineHeight:1.75,fontSize:14,whiteSpace:'pre-wrap'}}>{item.text}</div>
+              </div>
+            ))}
+            {busy && <div style={{display:'flex',gap:10,margin:'20px 0'}}><div style={{width:30,height:30,borderRadius:10,display:'grid',placeItems:'center',background:'#171d29',border:'1px solid #2a3342',fontWeight:800,fontSize:12}}>M</div><div style={{color:'#8e98aa',paddingTop:5}}>Myk is thinking ···</div></div>}
+          </section>
         )}
 
         {tab === 'models' && (
-          <section style={{padding: 20, borderRadius: 16, background: '#121a2b', border: '1px solid #263044'}}>
-            <h2 style={{marginTop: 0}}>GGUF Models</h2>
-            <p style={{opacity: .7}}>Choose a local GGUF model for offline inference.</p>
-            <div style={{padding: 16, borderRadius: 12, background: '#0f172a', marginBottom: 12}}>
-              <div style={{fontWeight: 700}}>{modelName}</div>
-              <div style={{fontSize: 13, opacity: .55, marginTop: 5}}>{models.length} local GGUF model{models.length === 1 ? '' : 's'} stored on this device.</div>
-              {models.map(model => <div key={model.name} style={{marginTop: 8, fontSize: 12, opacity: .7}}>{model.name} · {(model.size / 1024 / 1024).toFixed(1)} MB</div>)}
+          <section style={{margin:'22px 15px 110px',padding:18,borderRadius:20,background:'#10151f',border:'1px solid #202837'}}>
+            <div style={{fontSize:24,fontWeight:800}}>Models</div>
+            <div style={{color:'#8993a6',fontSize:13,marginTop:6}}>ဖုန်းထဲက GGUF model တွေကို စီမံပါ။</div>
+            <div style={{marginTop:16,padding:16,borderRadius:16,background:'#0c1119',border:'1px solid #202837'}}>
+              <div style={{fontSize:10,color:'#7f899b'}}>ACTIVE MODEL</div>
+              <div style={{fontSize:14,fontWeight:700,marginTop:7,wordBreak:'break-word'}}>{modelName}</div>
+              <div style={{fontSize:11,color:'#7f899b',marginTop:6}}>{models.length} local model{models.length===1?'':'s'}</div>
             </div>
-            <button onClick={pickModel} disabled={busy}
-              style={{padding: '12px 16px', borderRadius: 10, border: '1px solid #475569', background: '#1e293b', color: '#fff'}}>
-              {busy ? 'Opening model picker…' : 'Select GGUF Model'}
-            </button>
+            {models.map(model=><div key={model.name} style={{marginTop:10,padding:14,borderRadius:15,background:'#0c1119',border:model.name===modelName?'1px solid #6658e8':'1px solid #202837'}}><div style={{fontSize:13,fontWeight:650,wordBreak:'break-word'}}>{model.name}</div><div style={{fontSize:11,color:'#7f899b',marginTop:5}}>{(model.size/1024/1024).toFixed(1)} MB {model.name===modelName?'· Active':''}</div></div>)}
+            <button onClick={pickModel} disabled={busy} style={{marginTop:14,width:'100%',padding:13,border:0,borderRadius:13,background:'linear-gradient(135deg,#7c5cff,#4f8cff)',color:'#fff',fontWeight:750}}>{busy?'Opening…':'+ Add / Select GGUF Model'}</button>
           </section>
         )}
 
         {tab === 'settings' && (
-          <section style={{padding: 20, borderRadius: 16, background: '#121a2b', border: '1px solid #263044'}}>
-            <h2 style={{marginTop: 0}}>AI Engine Settings</h2>
-            <p style={{opacity: .7}}>ဒီ setting တွေကို ဖုန်းထဲမှာပဲ သိမ်းထားပြီး APK ပြန် build လုပ်စရာမလိုဘဲ ပြောင်းနိုင်ပါတယ်။</p>
-            {row('Context Size', <select value={settings.contextSize} onChange={e => saveSettings({...settings, contextSize: Number(e.target.value)})} style={{width: '100%', padding: 12, borderRadius: 10, background: '#111827', color: '#fff'}}>
-              {[512, 1024, 2048, 4096].map(v => <option key={v} value={v}>{v}</option>)}
-            </select>)}
-            {row('CPU Threads', <select value={settings.threads} onChange={e => saveSettings({...settings, threads: Number(e.target.value)})} style={{width: '100%', padding: 12, borderRadius: 10, background: '#111827', color: '#fff'}}>
-              {[1,2,3,4,5,6,7,8].map(v => <option key={v} value={v}>{v}</option>)}
-            </select>)}
-            {row('Temperature', <input type="number" min="0" max="1.5" step="0.1" value={settings.temperature} onChange={e => saveSettings({...settings, temperature: Number(e.target.value)})} style={{width: '100%', boxSizing: 'border-box', padding: 12, borderRadius: 10, background: '#111827', color: '#fff', border: '1px solid #334155'}} />)}
-            {row('Max Tokens', <select value={settings.maxTokens} onChange={e => saveSettings({...settings, maxTokens: Number(e.target.value)})} style={{width: '100%', padding: 12, borderRadius: 10, background: '#111827', color: '#fff'}}>
-              {[128, 256, 512, 1024, 2048].map(v => <option key={v} value={v}>{v}</option>)}
-            </select>)}
-            {row('Startup Timeout', <select value={settings.startupTimeoutSeconds} onChange={e => saveSettings({...settings, startupTimeoutSeconds: Number(e.target.value)})} style={{width: '100%', padding: 12, borderRadius: 10, background: '#111827', color: '#fff'}}>
-              {[120, 300, 600].map(v => <option key={v} value={v}>{v / 60} minutes</option>)}
-            </select>)}
-            <button onClick={resetSettings} style={{marginTop: 18, padding: '12px 16px', borderRadius: 10, border: '1px solid #475569', background: '#1e293b', color: '#fff'}}>
-              Reset to Recommended
-            </button>
+          <section style={{margin:'22px 15px 110px',padding:18,borderRadius:20,background:'#10151f',border:'1px solid #202837'}}>
+            <div style={{fontSize:24,fontWeight:800}}>Settings</div>
+            <p style={{color:'#8993a6',fontSize:13,lineHeight:1.6}}>AI engine ကို ဒီဖုန်းထဲမှာပဲ ချိန်ညှိနိုင်ပါတယ်။</p>
+            {row('Context Size', <select value={settings.contextSize} onChange={e=>saveSettings({...settings,contextSize:Number(e.target.value)})} style={{width:'100%',padding:12,borderRadius:12,background:'#0c1119',color:'#fff',border:'1px solid #2b3444'}}>{[512,1024,2048,4096].map(v=><option key={v} value={v}>{v}</option>)}</select>)}
+            {row('CPU Threads', <select value={settings.threads} onChange={e=>saveSettings({...settings,threads:Number(e.target.value)})} style={{width:'100%',padding:12,borderRadius:12,background:'#0c1119',color:'#fff',border:'1px solid #2b3444'}}>{[1,2,3,4,5,6,7,8].map(v=><option key={v} value={v}>{v}</option>)}</select>)}
+            {row('Temperature', <input type="number" min="0" max="1.5" step="0.1" value={settings.temperature} onChange={e=>saveSettings({...settings,temperature:Number(e.target.value)})} style={{width:'100%',boxSizing:'border-box',padding:12,borderRadius:12,background:'#0c1119',color:'#fff',border:'1px solid #2b3444'}} />)}
+            {row('Max Tokens', <select value={settings.maxTokens} onChange={e=>saveSettings({...settings,maxTokens:Number(e.target.value)})} style={{width:'100%',padding:12,borderRadius:12,background:'#0c1119',color:'#fff',border:'1px solid #2b3444'}}>{[128,256,512,1024,2048].map(v=><option key={v} value={v}>{v}</option>)}</select>)}
+            {row('Startup Timeout', <select value={settings.startupTimeoutSeconds} onChange={e=>saveSettings({...settings,startupTimeoutSeconds:Number(e.target.value)})} style={{width:'100%',padding:12,borderRadius:12,background:'#0c1119',color:'#fff',border:'1px solid #2b3444'}}>{[120,300,600].map(v=><option key={v} value={v}>{v/60} minutes</option>)}</select>)}
+            <button onClick={resetSettings} style={{marginTop:18,width:'100%',padding:12,borderRadius:12,border:'1px solid #30394a',background:'#151b26',color:'#d6dce7'}}>Reset to Recommended</button>
           </section>
         )}
       </main>
+
+      {tab === 'chat' && <div style={{position:'fixed',left:0,right:0,bottom:0,padding:'10px 12px 12px',background:'linear-gradient(transparent,#080b12 25%)',zIndex:8}}>
+        <div style={{maxWidth:920,margin:'0 auto',border:'1px solid #303847',background:'#111620',borderRadius:19,display:'flex',alignItems:'flex-end',gap:8,padding:8,boxShadow:'0 -8px 35px rgba(0,0,0,.28)'}}>
+          <input value={message} onChange={e=>setMessage(e.target.value)} onKeyDown={e=>{if(e.key==='Enter')send();}} placeholder="Myk ကို မေးလိုတာ ရိုက်ပါ…" style={{flex:1,minWidth:0,border:0,outline:0,background:'transparent',color:'#f5f7fb',padding:'10px 9px',fontSize:14}} />
+          <button onClick={busy ? ()=>MykAI.stop() : send} style={{width:42,height:42,border:0,borderRadius:13,background:busy?'#252c3a':'linear-gradient(135deg,#7c5cff,#4f8cff)',color:'#fff',fontWeight:800,fontSize:18}}>{busy?'■':'↑'}</button>
+        </div>
+        <div style={{textAlign:'center',fontSize:9,color:'#697386',marginTop:6}}>Offline · ဒီဖုန်းထဲမှာပဲ အလုပ်လုပ်ပါတယ်</div>
+      </div>}
+
+      <nav style={{position:'fixed',bottom:76,left:'50%',transform:'translateX(-50%)',display:'flex',gap:4,padding:6,borderRadius:18,border:'1px solid #202837',background:'#0c1018',zIndex:9,boxShadow:'0 8px 30px rgba(0,0,0,.28)'}}>
+        {(['chat','models','settings'] as Tab[]).map(item=><button key={item} onClick={()=>setTab(item)} style={{padding:'8px 12px',border:0,borderRadius:12,background:tab===item?'#1a2030':'transparent',color:tab===item?'#f5f7fb':'#7f899b',fontSize:12}}>{item==='chat'?'⌁ Chat':item==='models'?'◈ Models':'⚙ Settings'}</button>)}
+      </nav>
     </div>
   );
 }
