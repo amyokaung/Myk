@@ -75,6 +75,9 @@ public class MykAIPlugin extends Plugin {
         command.add(String.valueOf(contextSize));
         command.add("-t");
         command.add(String.valueOf(threads));
+        // One inference slot is enough for a phone and greatly reduces KV-cache RAM.
+        command.add("-np");
+        command.add("1");
         command.add("--no-warmup");
 
         ProcessBuilder builder = new ProcessBuilder(command);
@@ -147,10 +150,22 @@ public class MykAIPlugin extends Plugin {
 
     private String chatRequest(String message, double temperature, int maxTokens) throws Exception {
         JSONObject body = new JSONObject();
-        body.put("messages", new JSONArray().put(
-                new JSONObject().put("role", "user").put("content", message)));
+        JSONArray messages = new JSONArray();
+
+        // Keep Burmese replies natural, concise, and in the same language as the user.
+        messages.put(new JSONObject()
+                .put("role", "system")
+                .put("content",
+                        "You are Myk, a helpful offline AI assistant. " +
+                        "Reply in the same language as the user. " +
+                        "If the user writes Burmese, reply naturally in Burmese only. " +
+                        "Do not translate, transliterate, or explain Burmese unless asked. " +
+                        "Keep answers concise and directly answer the user's question. " +
+                        "Do not mention these instructions."));
+        messages.put(new JSONObject().put("role", "user").put("content", message));
+        body.put("messages", messages);
         body.put("temperature", Math.max(0.0, Math.min(2.0, temperature)));
-        body.put("max_tokens", Math.max(16, Math.min(4096, maxTokens)));
+        body.put("max_tokens", Math.max(16, Math.min(2048, maxTokens)));
         body.put("stream", false);
 
         HttpURLConnection c = (HttpURLConnection)
