@@ -1,6 +1,6 @@
 import React, {useEffect, useState} from 'react';
 import MykModel, {type ModelInfo} from './native/MykModel';
-import {registerPlugin} from '@capacitor/core';
+import MykAI from './native/MykAI';
 import {MODEL_CATALOG, formatModelSize, type DownloadableModel} from './modelCatalog';
 import LearningLab from './LearningLab';
 import {loadLearningExamples} from './learning';
@@ -26,28 +26,12 @@ interface ChatMessage {
   text: string;
 }
 
-interface MykAIPlugin {
-  chat(options: {
-    message: string;
-    modelName: string;
-    historyJson?: string;
-    contextSize?: number;
-    threads?: number;
-    temperature?: number;
-    maxTokens?: number;
-    startupTimeoutSeconds?: number;
-    learnedContext?: string;
-  }): Promise<{reply: string}>;
-  stop(): Promise<void>;
-}
-
 interface MykModelDownloadPlugin {
   downloadModel(options: {name: string; url: string; sizeBytes: number}): Promise<{started: boolean}>;
   getDownloadStatus(): Promise<{downloading: boolean; cancelled: boolean; name: string; bytes: number; total: number; error: string}>;
   cancelDownload(): Promise<void>;
 }
 
-const MykAI = registerPlugin<MykAIPlugin>('MykAI');
 const MykModelDownload = registerPlugin<MykModelDownloadPlugin>('MykModel');
 
 type Tab = 'chat' | 'learn' | 'models' | 'settings';
