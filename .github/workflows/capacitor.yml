@@ -80,6 +80,63 @@ jobs:
           cp capacitor/android/MykAIPlugin.java android/app/src/main/java/com/myanmarofflineai/myk/MykAIPlugin.java
           cp capacitor/android/MainActivity.java android/app/src/main/java/com/myanmarofflineai/myk/MainActivity.java
 
+      - name: Configure stable app version
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          import os
+
+          p = Path("android/app/build.gradle")
+          s = p.read_text()
+          version_code = 1000 + int(os.environ["GITHUB_RUN_NUMBER"])
+          version_name = f"1.0.{os.environ['GITHUB_RUN_NUMBER']}"
+          s = s.replace("versionCode 1", f"versionCode {version_code}")
+          s = s.replace('versionName "1.0"', f'versionName "{version_name}"')
+          p.write_text(s)
+          print(f"Myk versionCode={version_code} versionName={version_name}")
+          PY
+
+      - name: Configure stable signing for APK updates
+        env:
+          MYK_KEYSTORE_B64: ${{ secrets.MYK_KEYSTORE_B64 }}
+          MYK_KEYSTORE_PASSWORD: ${{ secrets.MYK_KEYSTORE_PASSWORD }}
+          MYK_KEY_ALIAS: ${{ secrets.MYK_KEY_ALIAS }}
+          MYK_KEY_PASSWORD: ${{ secrets.MYK_KEY_PASSWORD }}
+        run: |
+          set -euo pipefail
+          if [ -z "${MYK_KEYSTORE_B64:-}" ] || [ -z "${MYK_KEYSTORE_PASSWORD:-}" ] || [ -z "${MYK_KEY_ALIAS:-}" ] || [ -z "${MYK_KEY_PASSWORD:-}" ]; then
+            echo "::warning::Stable signing secrets are not configured. This APK will use the temporary debug key and will NOT support seamless updates from another runner."
+            exit 0
+          fi
+
+          echo "$MYK_KEYSTORE_B64" | base64 --decode > android/myk-release.keystore
+
+          python3 - <<'PY'
+          from pathlib import Path
+
+          p = Path("android/app/build.gradle")
+          s = p.read_text()
+          marker = "    buildTypes {"
+          block = """    signingConfigs {
+          mykStable {
+              storeFile file("../myk-release.keystore")
+              storePassword System.getenv("MYK_KEYSTORE_PASSWORD")
+              keyAlias System.getenv("MYK_KEY_ALIAS")
+              keyPassword System.getenv("MYK_KEY_PASSWORD")
+          }
+      }
+
+"""
+          if "mykStable" not in s:
+              if marker not in s:
+                  raise SystemExit("buildTypes block not found")
+              s = s.replace(marker, block + marker, 1)
+          s = s.replace("signingConfig signingConfigs.debug", "signingConfig signingConfigs.mykStable")
+          p.write_text(s)
+          PY
+
+          grep -n -A12 "signingConfigs" android/app/build.gradle
+
       - name: Force native library extraction
         run: |
           python3 - <<'PY'
