@@ -76,7 +76,7 @@ public class MykAIPlugin extends Plugin {
                 && requestedPath.equals(activeModelPath)
                 && contextSize == activeContextSize
                 && threads == activeThreads) {
-            return;
+            return 0L;
         }
 
         if (process != null) destroyServer();
