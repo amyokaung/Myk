@@ -127,6 +127,15 @@ export default function WebApp() {
     await MykModelDownload.cancelDownload().catch(() => {});
   };
 
+  const exportModel = async (model: ModelInfo) => {
+    try {
+      await MykModel.exportModel({name: model.name});
+    } catch (error) {
+      const text = error instanceof Error ? error.message : String(error);
+      if (text && !text.toLowerCase().includes('cancel')) alert(text);
+    }
+  };
+
   const pickModel = async () => {
     setBusy(true);
     try {
@@ -298,7 +307,10 @@ export default function WebApp() {
                 <div style={{display:'flex',justifyContent:'space-between',gap:8,alignItems:'flex-start'}}><div><div style={{fontSize:13,fontWeight:700}}>{model.name}</div><div style={{fontSize:11,color:'#7f899b',marginTop:5}}>{formatModelSize(model.sizeBytes)} · {model.description}</div></div>{model.recommended&&<span style={{fontSize:9,padding:'4px 7px',borderRadius:8,background:'#182238',color:'#9daeff'}}>Recommended</span>}</div>
                 <div style={{display:'flex',flexWrap:'wrap',gap:5,marginTop:9}}>{model.tags.map(tag=><span key={tag} style={{fontSize:9,padding:'4px 7px',borderRadius:7,background:'#151b26',color:'#8f9aad'}}>{tag}</span>)}</div>
                 {downloading ? <div style={{marginTop:11}}><div style={{height:6,borderRadius:9,background:'#202837',overflow:'hidden'}}><div style={{height:'100%',width:pct+'%',background:'linear-gradient(90deg,#7c5cff,#4f8cff)'}}/></div><div style={{display:'flex',justifyContent:'space-between',marginTop:7,fontSize:10,color:'#8f9aad'}}><span>{formatModelSize(downloadBytes)} / {formatModelSize(downloadTotal)} · {pct}%</span><button onClick={cancelModelDownload} style={{border:0,background:'transparent',color:'#ff8b8b'}}>Cancel</button></div></div>
-                : installed ? <button onClick={()=>setModelName(model.filename)} style={{marginTop:11,width:'100%',padding:10,borderRadius:10,border:active?'1px solid #6658e8':'1px solid #30394a',background:active?'#1a1835':'#151b26',color:'#fff',fontWeight:700}}>{active?'✓ Active':'Use this model'}</button>
+                : installed ? <div style={{display:'flex',gap:8,marginTop:11}}>
+                  <button onClick={()=>setModelName(model.filename)} style={{flex:1,padding:10,borderRadius:10,border:active?'1px solid #6658e8':'1px solid #30394a',background:active?'#1a1835':'#151b26',color:'#fff',fontWeight:700}}>{active?'✓ Active':'Use this model'}</button>
+                  <button onClick={()=>{const local=models.find(x=>x.name===model.filename); if(local) exportModel(local);}} style={{padding:'10px 12px',borderRadius:10,border:'1px solid #30394a',background:'#151b26',color:'#d6dce7',fontWeight:700}}>Export</button>
+                </div>
                 : <button onClick={()=>downloadModel(model)} disabled={!!downloadingId} style={{marginTop:11,width:'100%',padding:10,border:0,borderRadius:10,background:downloadingId?'#202837':'linear-gradient(135deg,#7c5cff,#4f8cff)',color:'#fff',fontWeight:700}}>↓ Download {formatModelSize(model.sizeBytes)}</button>}
               </div>;
             })}
