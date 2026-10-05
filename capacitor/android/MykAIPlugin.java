@@ -101,6 +101,11 @@ public class MykAIPlugin extends Plugin {
         command.add("-np");
         command.add("1");
         command.add("--no-warmup");
+        // Disable model reasoning by default. This is important for Gemma 4 / Padauk:
+        // otherwise the OpenAI-compatible response may contain only reasoning_content
+        // with an empty message.content until the token budget is exhausted.
+        command.add("--reasoning");
+        command.add("off");
 
         ProcessBuilder builder = new ProcessBuilder(command);
         builder.redirectErrorStream(true);
@@ -226,14 +231,9 @@ public class MykAIPlugin extends Plugin {
         body.put("max_tokens", Math.max(16, Math.min(2048, maxTokens)));
         body.put("stream", false);
 
-        // Qwen3 defaults to thinking mode. On a phone this can add substantial
-        // latency and consume the generation budget before the actual answer.
-        // Disable it for normal chat; users can still use larger models for
-        // harder tasks without paying the thinking overhead on every message.
-        if (modelName.toLowerCase().startsWith("qwen3-")) {
-            body.put("chat_template_kwargs", new JSONObject()
-                    .put("enable_thinking", false));
-        }
+        // Server-level --reasoning off is used so Gemma 4 / Padauk and Qwen
+        // reasoning models return the final answer in message.content instead
+        // of spending the whole max_tokens budget in reasoning_content.
 
         HttpURLConnection c = (HttpURLConnection)
                 new URL("http://127.0.0.1:" + PORT + "/v1/chat/completions").openConnection();
