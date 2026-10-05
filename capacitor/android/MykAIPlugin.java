@@ -239,7 +239,7 @@ public class MykAIPlugin extends Plugin {
                 new URL("http://127.0.0.1:" + PORT + "/v1/chat/completions").openConnection();
         c.setRequestMethod("POST");
         c.setConnectTimeout(3000);
-        c.setReadTimeout(180_000);
+        c.setReadTimeout(300_000);
         c.setDoOutput(true);
         c.setRequestProperty("Content-Type", "application/json");
 
@@ -272,6 +272,10 @@ public class MykAIPlugin extends Plugin {
         JSONObject msg = choice.optJSONObject("message");
         String content = msg == null ? "" : msg.optString("content", "");
         if (content.trim().isEmpty()) content = choice.optString("text", "");
+        if (content.trim().isEmpty()) {
+            String finishReason = choice.optString("finish_reason", "unknown");
+            throw new Exception("AI returned an empty response (finish_reason=" + finishReason + "). Raw response: " + raw);
+        }
         return content.trim();
     }
 
