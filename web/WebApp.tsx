@@ -173,8 +173,8 @@ export default function WebApp() {
     if (!selected) return;
 
     const history = messages.slice(-10);
-    const approvedLearning = loadLearningExamples().filter(x => x.status === 'approved').slice(0, 30);
-    const learnedContext = approvedLearning.map(x => `Q: ${x.question}\nA: ${x.idealAnswer}`).join('\n\n').slice(0, 7000);
+    const approvedLearning = loadLearningExamples().filter(x => x.status === 'approved').slice(0, 12);
+    const learnedContext = approvedLearning.map(x => `Q: ${x.question}\nA: ${x.idealAnswer}`).join('\n\n').slice(0, 3000);
     const historyJson = JSON.stringify(history.map(item => ({
       role: item.role,
       content: item.text,
@@ -198,7 +198,8 @@ export default function WebApp() {
       });
       const reply = (result.reply || '').trim();
       if (!reply) throw new Error('AI returned an empty response. Check the selected GGUF model or llama-server log.');
-      setMessages(current => [...current, {role: 'assistant', text: reply}]);
+      const timing = result.totalMs ? `\n\n⏱️ ${Math.round(result.totalMs / 1000)}s` : '';
+      setMessages(current => [...current, {role: 'assistant', text: reply + timing}]);
     } catch (error) {
       const text = error instanceof Error ? error.message : String(error);
       setMessages(current => [...current, {role: 'assistant', text: '❌ ' + text}]);
