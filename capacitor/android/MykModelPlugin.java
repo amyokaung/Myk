@@ -203,6 +203,72 @@ public class MykModelPlugin extends Plugin {
     }
 
     @PluginMethod
+    public void exportModel(PluginCall call) {
+        String name = call.getString("name");
+
+        if (name == null || !isSafeModelName(name)) {
+            call.reject("Invalid model name");
+            return;
+        }
+
+        File dir = new File(getContext().getFilesDir(), "models");
+        File source = new File(dir, name);
+        if (!source.exists() || !source.isFile() || source.length() == 0) {
+            call.reject("Model file not found");
+            return;
+        }
+
+        Intent intent = new Intent(Intent.ACTION_CREATE_DOCUMENT);
+        intent.addCategory(Intent.CATEGORY_OPENABLE);
+        intent.setType("application/octet-stream");
+        intent.putExtra(Intent.EXTRA_TITLE, name);
+        startActivityForResult(call, intent, "modelExported");
+    }
+
+    @ActivityCallback
+    private void modelExported(PluginCall call, ActivityResult result) {
+        if (call == null) return;
+
+        if (result == null
+                || result.getData() == null
+                || result.getData().getData() == null) {
+            call.reject("Export cancelled");
+            return;
+        }
+
+        String name = call.getString("name");
+        if (name == null || !isSafeModelName(name)) {
+            call.reject("Invalid model name");
+            return;
+        }
+
+        File source = new File(new File(getContext().getFilesDir(), "models"), name);
+        Uri destination = result.getData().getData();
+
+        if (!source.exists() || !source.isFile()) {
+            call.reject("Model file not found");
+            return;
+        }
+
+        try (InputStream input = new java.io.FileInputStream(source);
+             java.io.OutputStream output = getContext().getContentResolver().openOutputStream(destination)) {
+
+            if (output == null) throw new Exception("Could not open destination");
+
+            byte[] buffer = new byte[1024 * 1024];
+            int read;
+            while ((read = input.read(buffer)) != -1) {
+                output.write(buffer, 0, read);
+            }
+            output.flush();
+
+            call.resolve(new JSObject().put("name", name).put("size", source.length()));
+        } catch (Exception e) {
+            call.reject("Could not export model: " + e.getMessage());
+        }
+    }
+
+    @PluginMethod
     public void deleteModel(PluginCall call) {
         String name = call.getString("name");
 
