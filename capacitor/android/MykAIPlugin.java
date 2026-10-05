@@ -65,7 +65,8 @@ public class MykAIPlugin extends Plugin {
         }
     }
 
-    private void startServer(File model, int contextSize, int threads, int startupTimeoutSeconds) throws Exception {
+    private long startServer(File model, int contextSize, int threads, int startupTimeoutSeconds) throws Exception {
+        long startMs = System.currentTimeMillis();
         contextSize = Math.max(256, Math.min(8192, contextSize));
         threads = Math.max(1, Math.min(8, threads));
         startupTimeoutSeconds = Math.max(30, Math.min(900, startupTimeoutSeconds));
@@ -158,7 +159,7 @@ public class MykAIPlugin extends Plugin {
             if (process == null || !process.isAlive()) {
                 throw new Exception("llama-server exited during startup");
             }
-            if (serverModelLoaded || healthy()) return;
+            if (serverModelLoaded || healthy()) return System.currentTimeMillis() - startMs;
             Thread.sleep(750);
         }
 
@@ -207,7 +208,7 @@ public class MykAIPlugin extends Plugin {
         if (historyJson != null && !historyJson.trim().isEmpty()) {
             try {
                 JSONArray history = new JSONArray(historyJson);
-                int start = Math.max(0, history.length() - 10);
+                int start = Math.max(0, history.length() - 6);
                 for (int i = start; i < history.length(); i++) {
                     JSONObject item = history.optJSONObject(i);
                     if (item == null) continue;
@@ -305,11 +306,17 @@ public class MykAIPlugin extends Plugin {
 
         new Thread(() -> {
             try {
+                long totalStartMs = System.currentTimeMillis();
                 File model = new File(new File(getContext().getFilesDir(), "models"), modelName);
-                startServer(model, contextSize, threads, startupTimeoutSeconds);
+                long startupMs = startServer(model, contextSize, threads, startupTimeoutSeconds);
+                long generationStartMs = System.currentTimeMillis();
                 String reply = chatRequest(message, modelName, historyJson, temperature, maxTokens, learnedContext);
+                long generationMs = System.currentTimeMillis() - generationStartMs;
                 JSObject result = new JSObject();
                 result.put("reply", reply);
+                result.put("startupMs", startupMs);
+                result.put("generationMs", generationMs);
+                result.put("totalMs", System.currentTimeMillis() - totalStartMs);
                 call.resolve(result);
             } catch (Exception e) {
                 Log.e(TAG, "Chat failed", e);
