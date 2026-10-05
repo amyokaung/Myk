@@ -96,6 +96,22 @@ jobs:
           print(f"Myk versionCode={version_code} versionName={version_name}")
           PY
 
+      - name: Verify signing secrets are available
+        env:
+          MYK_KEYSTORE_B64: ${{ secrets.MYK_KEYSTORE_B64 }}
+          MYK_KEYSTORE_PASSWORD: ${{ secrets.MYK_KEYSTORE_PASSWORD }}
+          MYK_KEY_ALIAS: ${{ secrets.MYK_KEY_ALIAS }}
+          MYK_KEY_PASSWORD: ${{ secrets.MYK_KEY_PASSWORD }}
+        run: |
+          set -euo pipefail
+          test -n "$MYK_KEYSTORE_B64" && echo "MYK_KEYSTORE_B64: PRESENT (length=${#MYK_KEYSTORE_B64})" || { echo "::error::MYK_KEYSTORE_B64 is missing"; exit 1; }
+          test -n "$MYK_KEYSTORE_PASSWORD" && echo "MYK_KEYSTORE_PASSWORD: PRESENT" || { echo "::error::MYK_KEYSTORE_PASSWORD is missing"; exit 1; }
+          test -n "$MYK_KEY_ALIAS" && echo "MYK_KEY_ALIAS: PRESENT (length=${#MYK_KEY_ALIAS})" || { echo "::error::MYK_KEY_ALIAS is missing"; exit 1; }
+          test -n "$MYK_KEY_PASSWORD" && echo "MYK_KEY_PASSWORD: PRESENT" || { echo "::error::MYK_KEY_PASSWORD is missing"; exit 1; }
+          echo "$MYK_KEYSTORE_B64" | base64 --decode >/tmp/myk-release.keystore
+          test -s /tmp/myk-release.keystore
+          keytool -list -keystore /tmp/myk-release.keystore -storepass "$MYK_KEYSTORE_PASSWORD" -alias "$MYK_KEY_ALIAS" >/dev/null
+          echo "Keystore/password/alias verification: OK"
       - name: Configure stable signing for APK updates
         env:
           MYK_KEYSTORE_B64: ${{ secrets.MYK_KEYSTORE_B64 }}
