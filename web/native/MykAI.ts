@@ -11,7 +11,7 @@ export interface MykAIPlugin {
     maxTokens?: number;
     startupTimeoutSeconds?: number;
     learnedContext?: string;
-  }): Promise<{reply: string}>;
+  }): Promise<{reply: string; startupMs?: number; generationMs?: number; totalMs?: number}>;
   stop(): Promise<void>;
 }
 
