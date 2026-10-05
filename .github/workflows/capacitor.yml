@@ -176,6 +176,10 @@ jobs:
           grep -n "usesCleartextTraffic" android/app/src/main/AndroidManifest.xml
 
       - name: Build Capacitor debug APK
+        env:
+          MYK_KEYSTORE_PASSWORD: ${{ secrets.MYK_KEYSTORE_PASSWORD }}
+          MYK_KEY_ALIAS: ${{ secrets.MYK_KEY_ALIAS }}
+          MYK_KEY_PASSWORD: ${{ secrets.MYK_KEY_PASSWORD }}
         working-directory: android
         run: ./gradlew assembleDebug --no-daemon
 
