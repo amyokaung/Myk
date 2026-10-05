@@ -1,5 +1,9 @@
 name: Myk Capacitor Android APK
 
+concurrency:
+  group: myk-capacitor-${{ github.ref }}
+  cancel-in-progress: true
+
 on:
   workflow_dispatch:
   push:
@@ -96,63 +100,6 @@ jobs:
           print(f"Myk versionCode={version_code} versionName={version_name}")
           PY
 
-      - name: Verify signing secrets are available
-        env:
-          MYK_KEYSTORE_B64: ${{ secrets.MYK_KEYSTORE_B64 }}
-          MYK_KEYSTORE_PASSWORD: ${{ secrets.MYK_KEYSTORE_PASSWORD }}
-          MYK_KEY_ALIAS: ${{ secrets.MYK_KEY_ALIAS }}
-          MYK_KEY_PASSWORD: ${{ secrets.MYK_KEY_PASSWORD }}
-        run: |
-          set -euo pipefail
-          test -n "$MYK_KEYSTORE_B64" && echo "MYK_KEYSTORE_B64: PRESENT (length=${#MYK_KEYSTORE_B64})" || { echo "::error::MYK_KEYSTORE_B64 is missing"; exit 1; }
-          test -n "$MYK_KEYSTORE_PASSWORD" && echo "MYK_KEYSTORE_PASSWORD: PRESENT" || { echo "::error::MYK_KEYSTORE_PASSWORD is missing"; exit 1; }
-          test -n "$MYK_KEY_ALIAS" && echo "MYK_KEY_ALIAS: PRESENT (length=${#MYK_KEY_ALIAS})" || { echo "::error::MYK_KEY_ALIAS is missing"; exit 1; }
-          test -n "$MYK_KEY_PASSWORD" && echo "MYK_KEY_PASSWORD: PRESENT" || { echo "::error::MYK_KEY_PASSWORD is missing"; exit 1; }
-          echo "$MYK_KEYSTORE_B64" | base64 --decode >/tmp/myk-release.keystore
-          test -s /tmp/myk-release.keystore
-          keytool -list -keystore /tmp/myk-release.keystore -storepass "$MYK_KEYSTORE_PASSWORD" -alias "$MYK_KEY_ALIAS" >/dev/null
-          echo "Keystore/password/alias verification: OK"
-      - name: Configure stable signing for APK updates
-        env:
-          MYK_KEYSTORE_B64: ${{ secrets.MYK_KEYSTORE_B64 }}
-          MYK_KEYSTORE_PASSWORD: ${{ secrets.MYK_KEYSTORE_PASSWORD }}
-          MYK_KEY_ALIAS: ${{ secrets.MYK_KEY_ALIAS }}
-          MYK_KEY_PASSWORD: ${{ secrets.MYK_KEY_PASSWORD }}
-        run: |
-          set -euo pipefail
-          if [ -z "${MYK_KEYSTORE_B64:-}" ] || [ -z "${MYK_KEYSTORE_PASSWORD:-}" ] || [ -z "${MYK_KEY_ALIAS:-}" ] || [ -z "${MYK_KEY_PASSWORD:-}" ]; then
-            echo "::warning::Stable signing secrets are not configured. This APK will use the temporary debug key and will NOT support seamless updates from another runner."
-            exit 0
-          fi
-
-          echo "$MYK_KEYSTORE_B64" | base64 --decode > android/myk-release.keystore
-
-          python3 - <<'PY'
-          from pathlib import Path
-
-          p = Path("android/app/build.gradle")
-          s = p.read_text()
-          marker = "    buildTypes {"
-          block = """    signingConfigs {
-          mykStable {
-              storeFile file("../myk-release.keystore")
-              storePassword System.getenv("MYK_KEYSTORE_PASSWORD")
-              keyAlias System.getenv("MYK_KEY_ALIAS")
-              keyPassword System.getenv("MYK_KEY_PASSWORD")
-          }
-      }
-
-"""
-          if "mykStable" not in s:
-              if marker not in s:
-                  raise SystemExit("buildTypes block not found")
-              s = s.replace(marker, block + marker, 1)
-          s = s.replace("signingConfig signingConfigs.debug", "signingConfig signingConfigs.mykStable")
-          p.write_text(s)
-          PY
-
-          grep -n -A12 "signingConfigs" android/app/build.gradle
-
       - name: Force native library extraction
         run: |
           python3 - <<'PY'
@@ -192,10 +139,6 @@ jobs:
           grep -n "usesCleartextTraffic" android/app/src/main/AndroidManifest.xml
 
       - name: Build Capacitor debug APK
-        env:
-          MYK_KEYSTORE_PASSWORD: ${{ secrets.MYK_KEYSTORE_PASSWORD }}
-          MYK_KEY_ALIAS: ${{ secrets.MYK_KEY_ALIAS }}
-          MYK_KEY_PASSWORD: ${{ secrets.MYK_KEY_PASSWORD }}
         working-directory: android
         run: ./gradlew assembleDebug --no-daemon
 
