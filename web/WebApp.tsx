@@ -196,7 +196,9 @@ export default function WebApp() {
         startupTimeoutSeconds: settings.startupTimeoutSeconds,
         learnedContext,
       });
-      setMessages(current => [...current, {role: 'assistant', text: result.reply || '(No response)'}]);
+      const reply = (result.reply || '').trim();
+      if (!reply) throw new Error('AI returned an empty response. Check the selected GGUF model or llama-server log.');
+      setMessages(current => [...current, {role: 'assistant', text: reply}]);
     } catch (error) {
       const text = error instanceof Error ? error.message : String(error);
       setMessages(current => [...current, {role: 'assistant', text: '❌ ' + text}]);
