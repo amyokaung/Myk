@@ -13,7 +13,8 @@
     "web:dev": "vite --host 0.0.0.0",
     "web:build": "vite build",
     "cap:sync": "npm run web:build && npx cap sync android",
-    "android:cap": "npm run web:build && npx cap sync android && cd android && ./gradlew assembleDebug"
+    "android:cap": "npm run web:build && npx cap sync android && cd android && ./gradlew assembleDebug",
+    "build": "npm run web:build"
   },
   "dependencies": {
     "@op-engineering/op-sqlite": "^15.1.14",
