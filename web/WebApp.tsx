@@ -5,7 +5,7 @@ import {registerPlugin} from '@capacitor/core';
 import {MODEL_CATALOG, formatModelSize, type DownloadableModel} from './modelCatalog';
 import LearningLab from './LearningLab';
 import {loadLearningExamples} from './learning';
-import {chatWithOpenRouter, listOpenRouterModels, testOpenRouterModel, type OpenRouterModel, type OpenRouterTestResult} from './openrouterApi';
+import {chatWithOpenRouter, listOpenRouterModels, testOpenRouterModel, filterTeacherModels, type OpenRouterModel, type OpenRouterTestResult} from './openrouterApi';
 
 interface EngineSettings {
   contextSize: number;
@@ -44,6 +44,8 @@ type Tab = 'chat' | 'learn' | 'models' | 'settings';
 const SETTINGS_KEY = 'myk-engine-settings';
 const OPENROUTER_KEY = 'myk-openrouter-api-key';
 const OPENROUTER_MODEL_KEY = 'myk-openrouter-model';
+const OPENROUTER_TESTED_KEY = 'myk-openrouter-tested-models';
+const CHAT_MODE_KEY = 'myk-chat-mode';
 
 export default function WebApp() {
   const [tab, setTab] = useState<Tab>('chat');
@@ -61,6 +63,12 @@ export default function WebApp() {
   const [openRouterSearch, setOpenRouterSearch] = useState('');
   const [openRouterResult, setOpenRouterResult] = useState<OpenRouterTestResult | null>(null);
   const [openRouterError, setOpenRouterError] = useState('');
+  const [testedWorkingIds, setTestedWorkingIds] = useState<string[]>(() => {
+    try { return JSON.parse(localStorage.getItem(OPENROUTER_TESTED_KEY) || '[]'); } catch { return []; }
+  });
+  const [chatMode, setChatMode] = useState<'padauk' | 'teacher'>(() =>
+    localStorage.getItem(CHAT_MODE_KEY) === 'teacher' ? 'teacher' : 'padauk'
+  );
   const [downloadingId, setDownloadingId] = useState<string | null>(null);
   const [downloadBytes, setDownloadBytes] = useState(0);
   const [downloadTotal, setDownloadTotal] = useState(0);
@@ -102,10 +110,14 @@ export default function WebApp() {
     setOpenRouterError('');
     setOpenRouterResult(null);
     try {
-      const found = await listOpenRouterModels(key);
+      const all = await listOpenRouterModels(key);
+      const found = filterTeacherModels(all);
       setOpenRouterModels(found);
       const preferred = localStorage.getItem(OPENROUTER_MODEL_KEY) || '';
-      const next = found.some(m => m.id === preferred) ? preferred : found[0]?.id || '';
+      const tested = new Set(testedWorkingIds);
+      const next = found.some(m => m.id === preferred)
+        ? preferred
+        : found.find(m => tested.has(m.id))?.id || found[0]?.id || '';
       setOpenRouterSelectedModel(next);
       if (next) localStorage.setItem(OPENROUTER_MODEL_KEY, next);
       if (!found.length) setOpenRouterError('ဒီ OpenRouter Key နဲ့ text chat model မတွေ့ပါ။');
@@ -129,7 +141,13 @@ export default function WebApp() {
     try {
       const result = await testOpenRouterModel(openRouterApiKey, selected);
       setOpenRouterResult(result);
-      if (!result.ok) setOpenRouterError(result.error || 'Model test failed.');
+      if (result.ok) {
+        const next = Array.from(new Set([...testedWorkingIds, result.model]));
+        setTestedWorkingIds(next);
+        localStorage.setItem(OPENROUTER_TESTED_KEY, JSON.stringify(next));
+      } else {
+        setOpenRouterError(result.error || 'Model test failed.');
+      }
     } catch (error) {
       setOpenRouterError(error instanceof Error ? error.message : String(error));
     } finally {
@@ -239,15 +257,15 @@ export default function WebApp() {
     if (!value || busy) return;
 
     const apiKey = openRouterApiKey.trim();
-    if (!apiKey) {
+    if (chatMode === 'teacher' && !apiKey) {
       setMessages(current => [...current, {role: 'assistant', text: '❌ OpenRouter API Key မထည့်ရသေးပါ။ Settings → OpenRouter API သို့သွားပါ။'}]);
       setTab('settings');
       return;
     }
 
     const selectedModel = openRouterSelectedModel || openRouterModels[0]?.id || '';
-    if (!selectedModel) {
-      setMessages(current => [...current, {role: 'assistant', text: '❌ OpenRouter model မရွေးရသေးပါ။ Settings → OpenRouter API → Check available models လုပ်ပါ။'}]);
+    if (chatMode === 'teacher' && !selectedModel) {
+      setMessages(current => [...current, {role: 'assistant', text: '❌ Gemini / ChatGPT teacher model မရွေးရသေးပါ။ Settings → OpenRouter API သို့သွားပါ။'}]);
       setTab('settings');
       return;
     }
@@ -262,17 +280,50 @@ export default function WebApp() {
     setBusy(true);
 
     try {
-      const result = await chatWithOpenRouter({
-        apiKey,
-        model: selectedModel,
-        message: value,
-        history,
-        maxTokens: settings.maxTokens,
-        temperature: settings.temperature,
-      });
-      const reply = (result.reply || '').trim();
-      if (!reply) throw new Error('OpenRouter returned an empty response.');
-      setMessages(current => [...current, {role: 'assistant', text: reply + `\\n\\n⏱️ ${Math.round(result.elapsedMs / 1000)}s · OpenRouter`}]);
+      let reply = '';
+      let elapsedMs = 0;
+      if (chatMode === 'padauk') {
+        const learnedContext = loadLearningExamples()
+          .filter(item => item.status === 'approved')
+          .slice(0, 40)
+          .map(item => 'Q: ' + item.question + '\nA: ' + item.idealAnswer)
+          .join('\n\n')
+          .slice(0, 7000);
+        if (modelName === 'No GGUF model selected' || !modelName.toLowerCase().includes('padauk')) {
+          throw new Error('Padauk GGUF ကို Models မှာ Active လုပ်ပါ။');
+        }
+        const result = await MykAI.chat({
+          message: value,
+          modelName,
+          historyJson: JSON.stringify(history),
+          contextSize: settings.contextSize,
+          threads: settings.threads,
+          temperature: settings.temperature,
+          maxTokens: settings.maxTokens,
+          startupTimeoutSeconds: settings.startupTimeoutSeconds,
+          responseTimeoutSeconds: Math.max(20, settings.responseTimeoutSeconds),
+          thinkingMode: false,
+          learnedContext,
+        });
+        reply = (result.reply || '').trim();
+        elapsedMs = result.totalMs || result.generationMs || 0;
+      } else {
+        if (!testedWorkingIds.includes(selectedModel)) {
+          throw new Error('ဒီ Gemini / ChatGPT model ကို အရင် Test လုပ်ပြီး WORKS ဖြစ်အောင်လုပ်ပါ။');
+        }
+        const result = await chatWithOpenRouter({
+          apiKey,
+          model: selectedModel,
+          message: value,
+          history,
+          maxTokens: settings.maxTokens,
+          temperature: settings.temperature,
+        });
+        reply = (result.reply || '').trim();
+        elapsedMs = result.elapsedMs;
+      }
+      if (!reply) throw new Error('AI returned an empty response.');
+      setMessages(current => [...current, {role: 'assistant', text: reply + `\\n\\n⏱️ ${Math.round(elapsedMs / 1000)}s · ${chatMode === 'padauk' ? 'Padauk' : selectedModel}`}]);
     } catch (error) {
       const text = error instanceof Error ? error.message : String(error);
       setMessages(current => [...current, {role: 'assistant', text: '❌ ' + text}]);
@@ -310,14 +361,18 @@ export default function WebApp() {
       <style>{'@keyframes mykBrainPulse{0%,100%{opacity:.38;transform:scale(.88);filter:brightness(.65)}50%{opacity:1;transform:scale(1.08);filter:brightness(1.45)}}'}</style>\n      <main style={{maxWidth:920,margin:'0 auto',minHeight:'calc(100vh - 64px)'}}>
         {tab === 'chat' && (
           <section style={{padding:'18px 15px 145px'}}>
+            <div style={{display:'flex',gap:7,marginBottom:10}}>
+              <button onClick={()=>{setChatMode('padauk');localStorage.setItem(CHAT_MODE_KEY,'padauk')}} style={{flex:1,padding:10,borderRadius:12,border:'1px solid '+(chatMode==='padauk'?'#6658e8':'#252d3b'),background:chatMode==='padauk'?'#1a1835':'#10151f',color:'#fff',fontWeight:750}}>🎓 Padauk Student</button>
+              <button onClick={()=>{setChatMode('teacher');localStorage.setItem(CHAT_MODE_KEY,'teacher')}} style={{flex:1,padding:10,borderRadius:12,border:'1px solid '+(chatMode==='teacher'?'#6658e8':'#252d3b'),background:chatMode==='teacher'?'#1a1835':'#10151f',color:'#fff',fontWeight:750}}>👨‍🏫 Gemini / GPT</button>
+            </div>
             {messages.length === 0 ? (
               <div style={{minHeight:'62vh',display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',textAlign:'center'}}>
                 <div style={{width:68,height:68,borderRadius:22,display:'grid',placeItems:'center',background:'linear-gradient(135deg,#7c5cff,#4f8cff)',fontSize:30,fontWeight:900,boxShadow:'0 14px 40px rgba(92,92,255,.2)'}}>M</div>
                 <div style={{fontSize:27,fontWeight:800,marginTop:18}}>မင်္ဂလာပါ 👋</div>
-                <div style={{fontSize:14,color:'#8e98aa',lineHeight:1.7,marginTop:7}}>Myk ကို မေးလိုတာ မေးနိုင်ပါတယ်။<br/>Chat က OpenRouter API ကို အသုံးပြုပါတယ်။</div>
+                <div style={{fontSize:14,color:'#8e98aa',lineHeight:1.7,marginTop:7}}>Myk ကို မေးလိုတာ မေးနိုင်ပါတယ်။<br/>{chatMode === 'padauk' ? 'Padauk က သင်ယူထားတဲ့ knowledge နဲ့ offline ဖြေပါမယ်။' : 'Gemini / ChatGPT teacher model က online ဖြေပါမယ်။'}</div>
                 <div style={{marginTop:18,padding:'8px 12px',borderRadius:12,border:'1px solid #202837',background:'#0e131c',fontSize:11,color:'#aeb8ca'}}>
                   <span style={{display:'inline-block',width:7,height:7,borderRadius:99,background:'#35d07f',marginRight:7}}/>
-                  {modelName === 'No GGUF model selected' ? 'Model မရွေးရသေးပါ' : modelName}
+                  {chatMode === 'padauk' ? (modelName === 'No GGUF model selected' ? 'Padauk model မရွေးရသေးပါ' : modelName) : (openRouterModels.find(m => m.id === openRouterSelectedModel)?.name || 'Gemini / ChatGPT model')}
                 </div>
                 <div style={{display:'flex',flexWrap:'wrap',justifyContent:'center',gap:8,marginTop:20}}>
                   {['မြန်မာလို မေးမယ်','အကြောင်းအရာ ရှင်းပြပါ','စာရေးပေးပါ'].map(x=><button key={x} onClick={()=>setMessage(x)} style={{padding:'9px 13px',borderRadius:20,border:'1px solid #252d3b',background:'#10151f',color:'#b9c3d4',fontSize:12}}>{x}</button>)}
@@ -351,6 +406,9 @@ export default function WebApp() {
             modelsCount={models.length}
             settings={settings}
             openRouterApiKey={openRouterApiKey}
+            teacherModel={openRouterSelectedModel}
+            teacherModelName={openRouterModels.find(m => m.id === openRouterSelectedModel)?.name || openRouterSelectedModel}
+            teacherReady={testedWorkingIds.includes(openRouterSelectedModel)}
             onOpenRouterKeyNeeded={() => setTab('settings')}
           />
         )}
@@ -425,10 +483,11 @@ export default function WebApp() {
                   {openRouterResult.ok && <div style={{fontSize:12,color:'#d7e5dc',marginTop:7,whiteSpace:'pre-wrap'}}>Response: {openRouterResult.reply}</div>}
                   {!openRouterResult.ok && <div style={{fontSize:11,color:'#ffb0b7',marginTop:7,lineHeight:1.5}}>{openRouterResult.error}</div>}
                 </div>}
+                {openRouterResult?.ok && <div style={{marginTop:7,fontSize:10,color:'#69db9b'}}>✓ This model is verified WORKS and can be used as Padauk's teacher.</div>}
                 {openRouterError && <div style={{marginTop:10,padding:10,borderRadius:10,background:'#29161a',border:'1px solid #54242c',color:'#ff9da7',fontSize:10,lineHeight:1.5}}>❌ {openRouterError}</div>}
               </div>
             </div>
-            <p style={{color:'#8993a6',fontSize:13,lineHeight:1.6}}>AI engine ကို ဒီဖုန်းထဲမှာပဲ ချိန်ညှိနိုင်ပါတယ်။ Model သို့မဟုတ် engine setting ပြောင်းပြီးနောက် နောက်မေးခွန်းမှာ server ကို အလိုအလျောက် restart လုပ်ပေးပါမယ်။</p>
+            <p style={{color:'#8993a6',fontSize:13,lineHeight:1.6}}>Gemini / ChatGPT ကို Padauk ရဲ့ ဆရာအဖြစ် သုံးနိုင်ပါတယ်။ Approved lessons တွေကို local Learning Memory ထဲသိမ်းပြီး Padauk chat မှာ reference အဖြစ်ထည့်ပေးပါမယ်။</p>
             {row('Thinking Mode', <button onClick={()=>saveSettings({...settings,thinkingMode:!settings.thinkingMode})} style={{width:'100%',padding:12,borderRadius:12,border:'1px solid #2b3444',background:settings.thinkingMode?'#1a1835':'#0c1119',color:settings.thinkingMode?'#b9a8ff':'#d6dce7',fontWeight:750}}>{settings.thinkingMode?'🧠 ON · concise reasoning summary':'⚡ OFF · fastest answer'}</button>)}
             <div style={{fontSize:11,color:'#7f899b',lineHeight:1.5,marginTop:-4,marginBottom:8}}>ON ဖြစ်ရင် Myk က private chain-of-thought ကို မပြဘဲ မေးခွန်းကို ဘယ်လိုဖြေမလဲဆိုတဲ့ အကျဉ်းချုပ် reasoning ကိုသာ ပြပါမယ်။</div>
             {row('Context Size', <select value={settings.contextSize} onChange={e=>saveSettings({...settings,contextSize:Number(e.target.value)})} style={{width:'100%',padding:12,borderRadius:12,background:'#0c1119',color:'#fff',border:'1px solid #2b3444'}}>{[512,1024,2048,4096].map(v=><option key={v} value={v}>{v}</option>)}</select>)}
@@ -447,7 +506,7 @@ export default function WebApp() {
           <input value={message} onChange={e=>setMessage(e.target.value)} onKeyDown={e=>{if(e.key==='Enter')send();}} placeholder="Myk ကို မေးလိုတာ ရိုက်ပါ…" style={{flex:1,minWidth:0,border:0,outline:0,background:'transparent',color:'#f5f7fb',padding:'10px 9px',fontSize:14}} />
           <button onClick={busy ? ()=>MykAI.stop() : send} style={{width:42,height:42,border:0,borderRadius:13,background:busy?'#252c3a':'linear-gradient(135deg,#7c5cff,#4f8cff)',color:'#fff',fontWeight:800,fontSize:18}}>{busy?'■':'↑'}</button>
         </div>
-        <div style={{textAlign:'center',fontSize:9,color:'#697386',marginTop:6}}>Online · OpenRouter AI</div>
+        <div style={{textAlign:'center',fontSize:9,color:'#697386',marginTop:6}}>{chatMode === 'padauk' ? 'Offline · Padauk Student' : 'Online · Gemini / ChatGPT Teacher'}</div>
       </div>}
 
       <nav style={{position:'fixed',bottom:76,left:'50%',transform:'translateX(-50%)',display:'flex',gap:4,padding:6,borderRadius:18,border:'1px solid #202837',background:'#0c1018',zIndex:9,boxShadow:'0 8px 30px rgba(0,0,0,.28)'}}>
