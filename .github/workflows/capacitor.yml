@@ -169,7 +169,30 @@ jobs:
           s = s.replace("signingConfig signingConfigs.debug", "signingConfig signingConfigs.mykStable")
           p.write_text(s)
           PY
-          keytool -list -keystore android/myk-release.keystore -storepass "${MYK_KEYSTORE_PASSWORD}" -alias "${MYK_KEY_ALIAS}" -noprompt >/dev/null
+          echo "Checking keystore password..."
+          if ! keytool -list -keystore android/myk-release.keystore -storepass "${MYK_KEYSTORE_PASSWORD}" -noprompt >/dev/null 2>keytool-store.err; then
+            echo "ERROR: MYK_KEYSTORE_PASSWORD does not unlock the decoded keystore."
+            cat keytool-store.err
+            exit 1
+          fi
+          echo "Keystore password: OK"
+
+          echo "Checking key alias..."
+          if ! keytool -list -keystore android/myk-release.keystore -storepass "${MYK_KEYSTORE_PASSWORD}" -alias "${MYK_KEY_ALIAS}" -noprompt >/dev/null 2>keytool-alias.err; then
+            echo "ERROR: MYK_KEY_ALIAS does not match an entry in the keystore."
+            echo "Expected alias from the local keystore screenshot: myk"
+            cat keytool-alias.err
+            exit 1
+          fi
+          echo "Key alias: OK"
+
+          echo "Checking private-key password..."
+          if ! keytool -keypasswd -keystore android/myk-release.keystore -storepass "${MYK_KEYSTORE_PASSWORD}" -alias "${MYK_KEY_ALIAS}" -keypass "${MYK_KEY_PASSWORD}" -new "${MYK_KEY_PASSWORD}" -noprompt >/dev/null 2>keytool-key.err; then
+            echo "ERROR: MYK_KEY_PASSWORD does not unlock the private key for the selected alias."
+            cat keytool-key.err
+            exit 1
+          fi
+          echo "Private-key password: OK"
           echo "Stable signing keystore validated."
 
       - name: Force native library extraction
