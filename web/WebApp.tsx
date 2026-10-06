@@ -40,12 +40,11 @@ interface MykModelDownloadPlugin {
 
 const MykModelDownload = registerPlugin<MykModelDownloadPlugin>('MykModel');
 
-type Tab = 'home' | 'chat' | 'learn' | 'models' | 'settings';
+type Tab = 'home' | 'localChat' | 'onlineChat' | 'learn' | 'models' | 'settings';
 const SETTINGS_KEY = 'myk-engine-settings';
 const OPENROUTER_KEY = 'myk-openrouter-api-key';
 const OPENROUTER_MODEL_KEY = 'myk-openrouter-model';
 const OPENROUTER_TESTED_KEY = 'myk-openrouter-tested-models';
-const CHAT_MODE_KEY = 'myk-chat-mode';
 
 export default function WebApp() {
   const [tab, setTab] = useState<Tab>('home');
@@ -66,9 +65,6 @@ export default function WebApp() {
   const [testedWorkingIds, setTestedWorkingIds] = useState<string[]>(() => {
     try { return JSON.parse(localStorage.getItem(OPENROUTER_TESTED_KEY) || '[]'); } catch { return []; }
   });
-  const [chatMode, setChatMode] = useState<'padauk' | 'teacher'>(() =>
-    localStorage.getItem(CHAT_MODE_KEY) === 'teacher' ? 'teacher' : 'padauk'
-  );
   const [downloadingId, setDownloadingId] = useState<string | null>(null);
   const [downloadBytes, setDownloadBytes] = useState(0);
   const [downloadTotal, setDownloadTotal] = useState(0);
@@ -257,14 +253,14 @@ export default function WebApp() {
     if (!value || busy) return;
 
     const apiKey = openRouterApiKey.trim();
-    if (chatMode === 'teacher' && !apiKey) {
+    if (tab === 'onlineChat' && !apiKey) {
       setMessages(current => [...current, {role: 'assistant', text: '❌ OpenRouter API Key မထည့်ရသေးပါ။ Settings → OpenRouter API သို့သွားပါ။'}]);
       setTab('settings');
       return;
     }
 
     const selectedModel = openRouterSelectedModel || openRouterModels[0]?.id || '';
-    if (chatMode === 'teacher' && !selectedModel) {
+    if (tab === 'onlineChat' && !selectedModel) {
       setMessages(current => [...current, {role: 'assistant', text: '❌ Gemini / ChatGPT teacher model မရွေးရသေးပါ။ Settings → OpenRouter API သို့သွားပါ။'}]);
       setTab('settings');
       return;
@@ -282,7 +278,7 @@ export default function WebApp() {
     try {
       let reply = '';
       let elapsedMs = 0;
-      if (chatMode === 'padauk') {
+      if (tab === 'localChat') {
         const learnedContext = loadLearningExamples()
           .filter(item => item.status === 'approved')
           .slice(0, 40)
@@ -323,7 +319,7 @@ export default function WebApp() {
         elapsedMs = result.elapsedMs;
       }
       if (!reply) throw new Error('AI returned an empty response.');
-      setMessages(current => [...current, {role: 'assistant', text: reply + `\n\n⏱️ ${Math.round(elapsedMs / 1000)}s · ${chatMode === 'padauk' ? 'Padauk' : selectedModel}`}]);
+      setMessages(current => [...current, {role: 'assistant', text: reply + `\n\n⏱️ ${Math.round(elapsedMs / 1000)}s · ${tab === 'localChat' ? 'Padauk' : selectedModel}`}]);
     } catch (error) {
       const text = error instanceof Error ? error.message : String(error);
       setMessages(current => [...current, {role: 'assistant', text: '❌ ' + text}]);
@@ -353,8 +349,8 @@ export default function WebApp() {
         </div>
         <div style={{display:'flex',gap:7}}>
           {tab !== 'home' && <button onClick={()=>{if(busy) MykAI.stop().catch(()=>{}); setBusy(false); setTab('home');}} aria-label="Back to menu" style={{width:38,height:38,borderRadius:11,border:'1px solid #252c3a',background:'#111620',color:'#b9c2d3'}}>←</button>}
-          {tab === 'chat' && messages.length > 0 && <button onClick={clearChat} disabled={busy} aria-label="Clear chat" style={{width:38,height:38,borderRadius:11,border:'1px solid #252c3a',background:'#111620',color:'#b9c2d3'}}>⌫</button>}
-          {tab === 'chat' && <button onClick={newChat} aria-label="New chat" style={{width:38,height:38,borderRadius:11,border:'1px solid #252c3a',background:'#111620',color:'#b9c2d3'}}>＋</button>}
+          {(tab === 'localChat' || tab === 'onlineChat') && messages.length > 0 && <button onClick={clearChat} disabled={busy} aria-label="Clear chat" style={{width:38,height:38,borderRadius:11,border:'1px solid #252c3a',background:'#111620',color:'#b9c2d3'}}>⌫</button>}
+          {(tab === 'localChat' || tab === 'onlineChat') && <button onClick={newChat} aria-label="New chat" style={{width:38,height:38,borderRadius:11,border:'1px solid #252c3a',background:'#111620',color:'#b9c2d3'}}>＋</button>}
           <button onClick={()=>setTab('home')} aria-label="Menu" style={{width:38,height:38,borderRadius:11,border:'1px solid #252c3a',background:'#111620',color:'#b9c2d3'}}>☰</button>
         </div>
       </header>
@@ -371,11 +367,11 @@ export default function WebApp() {
 
             <div style={{fontSize:10,color:'#707b8e',fontWeight:850,letterSpacing:1.4,margin:'8px 4px'}}>AI</div>
             <div style={{display:'grid',gap:10}}>
-              <button onClick={()=>{setChatMode('padauk');localStorage.setItem(CHAT_MODE_KEY,'padauk');setMessages([]);setTab('chat')}} style={{textAlign:'left',padding:18,borderRadius:18,border:'1px solid #302b58',background:'linear-gradient(145deg,#15132b,#10151f)',color:'#fff'}}>
+              <button onClick={()=>{setMessages([]);setTab('localChat')}} style={{textAlign:'left',padding:18,borderRadius:18,border:'1px solid #302b58',background:'linear-gradient(145deg,#15132b,#10151f)',color:'#fff'}}>
                 <div style={{fontSize:19,fontWeight:850}}>🎓 Local AI · Padauk</div>
                 <div style={{fontSize:11,color:'#8e98aa',marginTop:6}}>ဖုန်းထဲက GGUF model · Internet မလို</div>
               </button>
-              <button onClick={()=>{setChatMode('teacher');localStorage.setItem(CHAT_MODE_KEY,'teacher');setMessages([]);setTab('chat')}} style={{textAlign:'left',padding:18,borderRadius:18,border:'1px solid #29364d',background:'linear-gradient(145deg,#111b2b,#10151f)',color:'#fff'}}>
+              <button onClick={()=>{setMessages([]);setTab('onlineChat')}} style={{textAlign:'left',padding:18,borderRadius:18,border:'1px solid #29364d',background:'linear-gradient(145deg,#111b2b,#10151f)',color:'#fff'}}>
                 <div style={{fontSize:19,fontWeight:850}}>👨‍🏫 Online AI · Gemini / GPT</div>
                 <div style={{fontSize:11,color:'#8e98aa',marginTop:6}}>OpenRouter · Gemini / ChatGPT models</div>
               </button>
@@ -399,21 +395,21 @@ export default function WebApp() {
           </section>
         )}
 
-        {tab === 'chat' && (
+        {(tab === 'localChat' || tab === 'onlineChat') && (
           <section style={{padding:'18px 15px 145px'}}>
             <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:14}}>
-              <div><div style={{fontSize:18,fontWeight:850}}>{chatMode === 'padauk' ? '🎓 Local AI · Padauk' : '👨‍🏫 Online AI · Gemini / GPT'}</div>
-              <div style={{fontSize:10,color:'#778296',marginTop:3}}>{chatMode === 'padauk' ? 'Offline GGUF engine' : 'OpenRouter API'}</div></div>
+              <div><div style={{fontSize:18,fontWeight:850}}>{tab === 'localChat' ? '🎓 Local AI · Padauk' : '👨‍🏫 Online AI · Gemini / GPT'}</div>
+              <div style={{fontSize:10,color:'#778296',marginTop:3}}>{tab === 'localChat' ? 'Offline GGUF engine' : 'OpenRouter API'}</div></div>
               <button onClick={()=>setTab('home')} style={{padding:'8px 11px',borderRadius:10,border:'1px solid #283243',background:'#111620',color:'#aeb8c8',fontSize:11}}>Menu</button>
             </div>
             {messages.length === 0 ? (
               <div style={{minHeight:'62vh',display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',textAlign:'center'}}>
                 <div style={{width:68,height:68,borderRadius:22,display:'grid',placeItems:'center',background:'linear-gradient(135deg,#7c5cff,#4f8cff)',fontSize:30,fontWeight:900,boxShadow:'0 14px 40px rgba(92,92,255,.2)'}}>M</div>
                 <div style={{fontSize:27,fontWeight:800,marginTop:18}}>မင်္ဂလာပါ 👋</div>
-                <div style={{fontSize:14,color:'#8e98aa',lineHeight:1.7,marginTop:7}}>Myk ကို မေးလိုတာ မေးနိုင်ပါတယ်။<br/>{chatMode === 'padauk' ? 'Padauk က သင်ယူထားတဲ့ knowledge နဲ့ offline ဖြေပါမယ်။' : 'Gemini / ChatGPT teacher model က online ဖြေပါမယ်။'}</div>
+                <div style={{fontSize:14,color:'#8e98aa',lineHeight:1.7,marginTop:7}}>Myk ကို မေးလိုတာ မေးနိုင်ပါတယ်။<br/>{tab === 'localChat' ? 'Padauk က သင်ယူထားတဲ့ knowledge နဲ့ offline ဖြေပါမယ်။' : 'Gemini / ChatGPT teacher model က online ဖြေပါမယ်။'}</div>
                 <div style={{marginTop:18,padding:'8px 12px',borderRadius:12,border:'1px solid #202837',background:'#0e131c',fontSize:11,color:'#aeb8ca'}}>
                   <span style={{display:'inline-block',width:7,height:7,borderRadius:99,background:'#35d07f',marginRight:7}}/>
-                  {chatMode === 'padauk' ? (modelName === 'No GGUF model selected' ? 'Padauk model မရွေးရသေးပါ' : modelName) : (openRouterModels.find(m => m.id === openRouterSelectedModel)?.name || 'Gemini / ChatGPT model')}
+                  {tab === 'localChat' ? (modelName === 'No GGUF model selected' ? 'Padauk model မရွေးရသေးပါ' : modelName) : (openRouterModels.find(m => m.id === openRouterSelectedModel)?.name || 'Gemini / ChatGPT model')}
                 </div>
                 <div style={{display:'flex',flexWrap:'wrap',justifyContent:'center',gap:8,marginTop:20}}>
                   {['မြန်မာလို မေးမယ်','အကြောင်းအရာ ရှင်းပြပါ','စာရေးပေးပါ'].map(x=><button key={x} onClick={()=>setMessage(x)} style={{padding:'9px 13px',borderRadius:20,border:'1px solid #252d3b',background:'#10151f',color:'#b9c3d4',fontSize:12}}>{x}</button>)}
@@ -542,12 +538,12 @@ export default function WebApp() {
         )}
       </main>
 
-      {tab === 'chat' && <div style={{position:'fixed',left:0,right:0,bottom:0,padding:'10px 12px 12px',background:'linear-gradient(transparent,#080b12 25%)',zIndex:8}}>
+      {(tab === 'localChat' || tab === 'onlineChat') && <div style={{position:'fixed',left:0,right:0,bottom:0,padding:'10px 12px 12px',background:'linear-gradient(transparent,#080b12 25%)',zIndex:8}}>
         <div style={{maxWidth:920,margin:'0 auto',border:'1px solid #303847',background:'#111620',borderRadius:19,display:'flex',alignItems:'flex-end',gap:8,padding:8,boxShadow:'0 -8px 35px rgba(0,0,0,.28)'}}>
           <input value={message} onChange={e=>setMessage(e.target.value)} onKeyDown={e=>{if(e.key==='Enter')send();}} placeholder="Myk ကို မေးလိုတာ ရိုက်ပါ…" style={{flex:1,minWidth:0,border:0,outline:0,background:'transparent',color:'#f5f7fb',padding:'10px 9px',fontSize:14}} />
           <button onClick={busy ? ()=>MykAI.stop() : send} style={{width:42,height:42,border:0,borderRadius:13,background:busy?'#252c3a':'linear-gradient(135deg,#7c5cff,#4f8cff)',color:'#fff',fontWeight:800,fontSize:18}}>{busy?'■':'↑'}</button>
         </div>
-        <div style={{textAlign:'center',fontSize:9,color:'#697386',marginTop:6}}>{chatMode === 'padauk' ? 'Offline · Padauk Student' : 'Online · Gemini / ChatGPT Teacher'}</div>
+        <div style={{textAlign:'center',fontSize:9,color:'#697386',marginTop:6}}>{tab === 'localChat' ? 'Offline · Padauk Student' : 'Online · Gemini / ChatGPT Teacher'}</div>
       </div>}
 
       {tab !== 'home' && <button onClick={()=>setTab('home')} style={{position:'fixed',right:14,bottom:92,zIndex:9,padding:'9px 13px',borderRadius:13,border:'1px solid #2a3342',background:'#0c1018',color:'#aeb8c8',fontSize:11}}>☰ Menu</button>}
