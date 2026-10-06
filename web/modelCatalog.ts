@@ -71,6 +71,16 @@ export const MODEL_CATALOG: DownloadableModel[] = [
     url: 'https://huggingface.co/unsloth/gemma-3-4b-it-GGUF/resolve/main/gemma-3-4b-it-Q5_K_M.gguf',
   },
   {
+    id: 'padauk-iq1s',
+    name: 'AI4Burmese Padauk · IQ1_S · Phone Lite',
+    filename: 'ai4burmese-padauk.i1-IQ1_S.gguf',
+    sizeBytes: 3400000000,
+    description: 'Padauk ရဲ့ အရွယ်အသေးဆုံး community quantization။ Quality လျော့နိုင်ပေမယ့် 5.3GB Q4 ထက် ဖုန်းမှာ စမ်းရန်ပိုသင့်တော်သည်။',
+    tags: ['Burmese-first', '7B', '3.4 GB', 'Phone Lite'],
+    recommended: false,
+    url: 'https://huggingface.co/mradermacher/ai4burmese-padauk-i1-GGUF/resolve/main/ai4burmese-padauk.i1-IQ1_S.gguf',
+  },
+  {
     id: 'padauk-q4km',
     name: 'AI4Burmese Padauk · Q4_K_M',
     filename: 'ai4burmese-padauk.Q4_K_M.gguf',
