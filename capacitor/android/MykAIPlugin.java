@@ -99,6 +99,8 @@ public class MykAIPlugin extends Plugin {
         command.add(String.valueOf(contextSize));
         command.add("-t");
         command.add(String.valueOf(threads));
+        command.add("-tb");
+        command.add(String.valueOf(threads));
         command.add("-np");
         command.add("1");
         command.add("--no-warmup");
@@ -311,7 +313,7 @@ public class MykAIPlugin extends Plugin {
         String modelName = call.getString("modelName", "").trim();
         String historyJson = call.getString("historyJson", "[]");
         int contextSize = call.getInt("contextSize", 1024);
-        int threads = call.getInt("threads", 4);
+        int threads = call.getInt("threads", 8);
         double temperature = call.getDouble("temperature", 0.7);
         int maxTokens = call.getInt("maxTokens", 128);
         int startupTimeoutSeconds = call.getInt("startupTimeoutSeconds", 120);
