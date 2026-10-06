@@ -18,7 +18,7 @@ interface EngineSettings {
 
 const DEFAULT_SETTINGS: EngineSettings = {
   contextSize: 512,
-  threads: 4,
+  threads: 8,
   temperature: 0.5,
   maxTokens: 128,
   startupTimeoutSeconds: 120,
@@ -185,9 +185,9 @@ export default function WebApp() {
     const selected = modelName === 'No GGUF model selected' ? models[0]?.name : modelName;
     if (!selected) return;
 
-    const history = messages.slice(-10);
+    const history = messages.slice(-2);
     const approvedLearning = loadLearningExamples().filter(x => x.status === 'approved').slice(0, 12);
-    const learnedContext = approvedLearning.map(x => `Q: ${x.question}\nA: ${x.idealAnswer}`).join('\n\n').slice(0, 3000);
+    const learnedContext = approvedLearning.map(x => `Q: ${x.question}\nA: ${x.idealAnswer}`).join('\n\n').slice(0, 1000);
     const historyJson = JSON.stringify(history.map(item => ({
       role: item.role,
       content: item.text,
@@ -214,7 +214,7 @@ export default function WebApp() {
       const reply = (result.reply || '').trim();
       if (!reply) throw new Error('AI returned an empty response. Check the selected GGUF model or llama-server log.');
       const thinking = (result.thinkingSummary || '').trim();
-      const timing = result.totalMs ? `\n\n⏱️ ${Math.round(result.totalMs / 1000)}s` : '';
+      const timing = result.totalMs ? `\n\n⏱️ ${Math.round((result.generationMs || result.totalMs) / 1000)}s · total ${Math.round(result.totalMs / 1000)}s` : '';
       const visibleReply = thinking && settings.thinkingMode
         ? `🧠 စဉ်းစားပုံအကျဉ်း\n${thinking}\n\n💬 အဖြေ\n${reply}${timing}`
         : reply + timing;
