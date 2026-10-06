@@ -5,6 +5,7 @@ import {registerPlugin} from '@capacitor/core';
 import {MODEL_CATALOG, formatModelSize, type DownloadableModel} from './modelCatalog';
 import LearningLab from './LearningLab';
 import {loadLearningExamples} from './learning';
+import {listGeminiModels, testGeminiModel, type GeminiModel, type GeminiModelTestResult} from './geminiApi';
 
 interface EngineSettings {
   contextSize: number;
@@ -52,6 +53,12 @@ export default function WebApp() {
   const [busy, setBusy] = useState(false);
   const [copiedIndex, setCopiedIndex] = useState<number | null>(null);
   const [geminiApiKey, setGeminiApiKey] = useState(() => localStorage.getItem(GEMINI_KEY) || '');
+  const [geminiModels, setGeminiModels] = useState<GeminiModel[]>([]);
+  const [geminiLoading, setGeminiLoading] = useState(false);
+  const [geminiTesting, setGeminiTesting] = useState(false);
+  const [geminiSelectedModel, setGeminiSelectedModel] = useState('');
+  const [geminiResult, setGeminiResult] = useState<GeminiModelTestResult | null>(null);
+  const [geminiError, setGeminiError] = useState('');
   const [downloadingId, setDownloadingId] = useState<string | null>(null);
   const [downloadBytes, setDownloadBytes] = useState(0);
   const [downloadTotal, setDownloadTotal] = useState(0);
@@ -73,6 +80,60 @@ export default function WebApp() {
   const resetSettings = () => {
     setSettings(DEFAULT_SETTINGS);
     localStorage.setItem(SETTINGS_KEY, JSON.stringify(DEFAULT_SETTINGS));
+  };
+
+  const saveGeminiKey = () => {
+    const key = geminiApiKey.trim();
+    setGeminiApiKey(key);
+    localStorage.setItem(GEMINI_KEY, key);
+    setGeminiError('');
+    setGeminiResult(null);
+  };
+
+  const discoverGeminiModels = async () => {
+    const key = geminiApiKey.trim();
+    if (!key) {
+      setGeminiError('Gemini API Key ထည့်ပြီး Save Key ကိုနှိပ်ပါ။');
+      return;
+    }
+    setGeminiLoading(true);
+    setGeminiError('');
+    setGeminiResult(null);
+    try {
+      const found = await listGeminiModels(key);
+      setGeminiModels(found);
+      if (found.length) {
+        setGeminiSelectedModel(current => found.some(m => m.baseModelId === current) ? current : found[0].baseModelId);
+      } else {
+        setGeminiSelectedModel('');
+        setGeminiError('ဒီ API Key နဲ့ generateContent သုံးလို့ရတဲ့ model မတွေ့ပါ။');
+      }
+    } catch (error) {
+      setGeminiModels([]);
+      setGeminiSelectedModel('');
+      setGeminiError(error instanceof Error ? error.message : String(error));
+    } finally {
+      setGeminiLoading(false);
+    }
+  };
+
+  const runGeminiTest = async () => {
+    const selected = geminiModels.find(m => m.baseModelId === geminiSelectedModel);
+    if (!selected) {
+      setGeminiError('အရင်ဆုံး model list ကို Load လုပ်ပြီး model ရွေးပါ။');
+      return;
+    }
+    setGeminiTesting(true);
+    setGeminiError('');
+    try {
+      const result = await testGeminiModel(geminiApiKey, selected);
+      setGeminiResult(result);
+      if (!result.ok) setGeminiError(result.error || 'Model test failed.');
+    } catch (error) {
+      setGeminiError(error instanceof Error ? error.message : String(error));
+    } finally {
+      setGeminiTesting(false);
+    }
   };
 
   const refreshModels = async () => {
@@ -341,12 +402,37 @@ export default function WebApp() {
               <div style={{fontSize:10,color:'#9a92ff',fontWeight:800,letterSpacing:1}}>LEARNING LAB · GEMINI</div>
               <div style={{fontSize:16,fontWeight:800,marginTop:5}}>Gemini API Key</div>
               <div style={{fontSize:11,color:'#7f899b',marginTop:5,lineHeight:1.5}}>Learning Lab ရဲ့ Teacher / Judge အတွက် သီးသန့်သုံးမယ့် key ပါ။ ပုံမှန် Chat က Gemini ကို မခေါ်ပါ။</div>
-              <input type="password" value={geminiApiKey} onChange={e=>{setGeminiApiKey(e.target.value);localStorage.setItem(GEMINI_KEY,e.target.value)}} placeholder="AIza..." autoComplete="off" style={{width:'100%',boxSizing:'border-box',marginTop:11,padding:12,borderRadius:11,border:'1px solid #30384a',background:'#080d15',color:'#fff',outline:0}} />
+              <input type="password" value={geminiApiKey} onChange={e=>setGeminiApiKey(e.target.value)} placeholder="AIza..." autoComplete="off" style={{width:'100%',boxSizing:'border-box',marginTop:11,padding:12,borderRadius:11,border:'1px solid #30384a',background:'#080d15',color:'#fff',outline:0}} />
               <div style={{display:'flex',gap:8,marginTop:9}}>
-                <button onClick={()=>{localStorage.setItem(GEMINI_KEY,geminiApiKey.trim());setGeminiApiKey(geminiApiKey.trim());}} style={{flex:1,padding:9,borderRadius:10,border:0,background:'#6558e8',color:'#fff',fontWeight:750}}>Save Key</button>
-                <button onClick={()=>{setGeminiApiKey('');localStorage.removeItem(GEMINI_KEY)}} style={{padding:'9px 12px',borderRadius:10,border:'1px solid #3a3038',background:'#181319',color:'#ff9fa8'}}>Clear</button>
+                <button onClick={saveGeminiKey} style={{flex:1,padding:9,borderRadius:10,border:0,background:'#6558e8',color:'#fff',fontWeight:750}}>Save Key</button>
+                <button onClick={()=>{setGeminiApiKey('');localStorage.removeItem(GEMINI_KEY);setGeminiModels([]);setGeminiResult(null);setGeminiError('');}} style={{padding:'9px 12px',borderRadius:10,border:'1px solid #3a3038',background:'#181319',color:'#ff9fa8'}}>Clear</button>
               </div>
               <div style={{fontSize:9,color:'#697386',marginTop:9,lineHeight:1.5}}>Key ကို GitHub/source code ထဲ မထည့်ထားပါ။ ဒီဖုန်းရဲ့ local storage ထဲမှာပဲ သိမ်းထားပါတယ်။</div>
+              <div style={{marginTop:14,paddingTop:14,borderTop:'1px solid #252c3a'}}>
+                <div style={{fontSize:12,fontWeight:800}}>Gemini API Model Test</div>
+                <div style={{fontSize:10,color:'#7f899b',marginTop:4,lineHeight:1.5}}>ဒီ key နဲ့ တကယ်ရရှိနိုင်ပြီး generateContent သုံးလို့ရတဲ့ models ကို Google API ကနေ တိုက်ရိုက်ရှာပြီး စမ်းပါမယ်။</div>
+                <button onClick={discoverGeminiModels} disabled={geminiLoading || !geminiApiKey.trim()} style={{marginTop:10,width:'100%',padding:10,borderRadius:10,border:'1px solid #3b3860',background:'#17152b',color:'#c9c2ff',fontWeight:750}}>
+                  {geminiLoading ? 'Loading model list…' : '🔎 Check available Gemini models'}
+                </button>
+                {geminiModels.length>0 && <div style={{marginTop:10}}>
+                  <div style={{fontSize:9,color:'#7f899b',marginBottom:5}}>AVAILABLE TEXT GENERATION MODELS · {geminiModels.length}</div>
+                  <select value={geminiSelectedModel} onChange={e=>{setGeminiSelectedModel(e.target.value);setGeminiResult(null);setGeminiError('')}} style={{width:'100%',padding:11,borderRadius:10,background:'#0c1119',color:'#fff',border:'1px solid #30384a'}}>
+                    {geminiModels.map(model=><option key={model.baseModelId} value={model.baseModelId}>{model.displayName} · {model.baseModelId}</option>)}
+                  </select>
+                  <div style={{fontSize:10,color:'#7f899b',marginTop:6,lineHeight:1.5}}>
+                    {geminiModels.find(m=>m.baseModelId===geminiSelectedModel)?.description || 'Model metadata loaded from Google Gemini API.'}
+                  </div>
+                  <button onClick={runGeminiTest} disabled={geminiTesting} style={{marginTop:9,width:'100%',padding:10,borderRadius:10,border:0,background:'linear-gradient(135deg,#6558e8,#4f8cff)',color:'#fff',fontWeight:800}}>
+                    {geminiTesting ? 'Testing model…' : '▶ Test selected model'}
+                  </button>
+                </div>}
+                {geminiResult && <div style={{marginTop:10,padding:11,borderRadius:10,background:geminiResult.ok?'#0d2119':'#29161a',border:'1px solid '+(geminiResult.ok?'#215a40':'#54242c')}}>
+                  <div style={{fontSize:11,fontWeight:800,color:geminiResult.ok?'#7ee2ad':'#ff9da7'}}>{geminiResult.ok?'✅ WORKS':'❌ FAILED'} · {geminiResult.elapsedMs} ms</div>
+                  {geminiResult.ok && <div style={{fontSize:12,color:'#d7e5dc',marginTop:7,whiteSpace:'pre-wrap'}}>Response: {geminiResult.reply}</div>}
+                  {!geminiResult.ok && <div style={{fontSize:11,color:'#ffb0b7',marginTop:7,lineHeight:1.5}}>{geminiResult.error}</div>}
+                </div>}
+                {geminiError && <div style={{marginTop:10,padding:10,borderRadius:10,background:'#29161a',border:'1px solid #54242c',color:'#ff9da7',fontSize:10,lineHeight:1.5}}>❌ {geminiError}</div>}
+              </div>
             </div>
             <p style={{color:'#8993a6',fontSize:13,lineHeight:1.6}}>AI engine ကို ဒီဖုန်းထဲမှာပဲ ချိန်ညှိနိုင်ပါတယ်။ Model သို့မဟုတ် engine setting ပြောင်းပြီးနောက် နောက်မေးခွန်းမှာ server ကို အလိုအလျောက် restart လုပ်ပေးပါမယ်။</p>
             {row('Thinking Mode', <button onClick={()=>saveSettings({...settings,thinkingMode:!settings.thinkingMode})} style={{width:'100%',padding:12,borderRadius:12,border:'1px solid #2b3444',background:settings.thinkingMode?'#1a1835':'#0c1119',color:settings.thinkingMode?'#b9a8ff':'#d6dce7',fontWeight:750}}>{settings.thinkingMode?'🧠 ON · concise reasoning summary':'⚡ OFF · fastest answer'}</button>)}
