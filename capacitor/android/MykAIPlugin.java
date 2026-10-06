@@ -69,7 +69,7 @@ public class MykAIPlugin extends Plugin {
         long startMs = System.currentTimeMillis();
         contextSize = Math.max(256, Math.min(8192, contextSize));
         threads = Math.max(1, Math.min(8, threads));
-        startupTimeoutSeconds = Math.max(30, Math.min(900, startupTimeoutSeconds));
+        startupTimeoutSeconds = Math.max(60, Math.min(900, startupTimeoutSeconds));
 
         String requestedPath = model.getAbsolutePath();
         if (process != null && process.isAlive()
@@ -104,12 +104,15 @@ public class MykAIPlugin extends Plugin {
         command.add("-np");
         command.add("1");
         command.add("--no-warmup");
-        // Padauk is a Gemma 4 chat model. Explicit Jinja enables its chat template,
-        // while --reasoning off prevents internal thinking from consuming the mobile
-        // completion budget.
+        // Padauk is Gemma 4. Keep Jinja enabled and disable thinking through the
+        // template variable; this is the reliable Gemma-4 path for llama-server.
         command.add("--jinja");
         command.add("--reasoning");
-        command.add("off");
+        command.add("auto");
+        command.add("--reasoning-format");
+        command.add("none");
+        command.add("--chat-template-kwargs");
+        command.add("{\"enable_thinking\":false}");
 
         ProcessBuilder builder = new ProcessBuilder(command);
         builder.redirectErrorStream(true);
@@ -122,6 +125,16 @@ public class MykAIPlugin extends Plugin {
         ActivityManager am = (ActivityManager) getContext().getSystemService(Context.ACTIVITY_SERVICE);
         ActivityManager.MemoryInfo memory = new ActivityManager.MemoryInfo();
         if (am != null) am.getMemoryInfo(memory);
+
+        // Padauk Q4_K_M is about 5.3 GB. On phones under memory pressure, keep
+        // the KV cache and CPU worker count conservative so Android is less likely
+        // to kill llama-server while the model is loading.
+        if (memory.availMem < 4L * 1024L * 1024L * 1024L) {
+            contextSize = Math.min(contextSize, 384);
+            threads = Math.min(threads, 4);
+            Log.w(TAG, "Low-memory Padauk profile: context=" + contextSize + " threads=" + threads);
+        }
+
         Log.i(TAG, "Starting llama-server model=" + model.getName()
                 + " size=" + model.length() + " freeRam=" + memory.availMem
                 + " context=" + contextSize + " threads=" + threads);
@@ -315,8 +328,8 @@ public class MykAIPlugin extends Plugin {
         int threads = call.getInt("threads", 8);
         double temperature = call.getDouble("temperature", 0.7);
         int maxTokens = call.getInt("maxTokens", 128);
-        int startupTimeoutSeconds = call.getInt("startupTimeoutSeconds", 120);
-        int responseTimeoutSeconds = call.getInt("responseTimeoutSeconds", 10);
+        int startupTimeoutSeconds = call.getInt("startupTimeoutSeconds", 300);
+        int responseTimeoutSeconds = call.getInt("responseTimeoutSeconds", 60);
         boolean thinkingMode = call.getBoolean("thinkingMode", false);
         String learnedContext = call.getString("learnedContext", "");
 
