@@ -126,7 +126,27 @@ jobs:
           test -n "${MYK_KEYSTORE_PASSWORD}" || { echo "MYK_KEYSTORE_PASSWORD is missing"; exit 1; }
           test -n "${MYK_KEY_ALIAS}" || { echo "MYK_KEY_ALIAS is missing"; exit 1; }
           test -n "${MYK_KEY_PASSWORD}" || { echo "MYK_KEY_PASSWORD is missing"; exit 1; }
-          printf '%s' "${MYK_KEYSTORE_B64}" | base64 --decode > android/myk-release.keystore
+          # GitHub Secrets may contain line breaks from copy/paste. Normalize
+          # whitespace first, then restore missing base64 padding if necessary.
+          python3 - <<'PY'
+          import base64
+          import os
+          from pathlib import Path
+
+          raw = os.environ["MYK_KEYSTORE_B64"]
+          clean = "".join(raw.split())
+          if not clean:
+              raise SystemExit("MYK_KEYSTORE_B64 became empty after whitespace normalization")
+          padding = "=" * ((4 - len(clean) % 4) % 4)
+          try:
+              data = base64.b64decode(clean + padding, validate=True)
+          except Exception as exc:
+              raise SystemExit(f"MYK_KEYSTORE_B64 is not valid base64: {exc}")
+          if not data:
+              raise SystemExit("Decoded keystore is empty")
+          Path("android/myk-release.keystore").write_bytes(data)
+          print(f"Decoded keystore bytes: {len(data)}")
+          PY
           test -s android/myk-release.keystore
           python3 - <<'PY'
           from pathlib import Path
