@@ -12,6 +12,7 @@ interface EngineSettings {
   temperature: number;
   maxTokens: number;
   startupTimeoutSeconds: number;
+  thinkingMode: boolean;
 }
 
 const DEFAULT_SETTINGS: EngineSettings = {
@@ -20,6 +21,7 @@ const DEFAULT_SETTINGS: EngineSettings = {
   temperature: 0.5,
   maxTokens: 256,
   startupTimeoutSeconds: 600,
+  thinkingMode: false,
 };
 
 interface ChatMessage {
@@ -203,12 +205,17 @@ export default function WebApp() {
         temperature: settings.temperature,
         maxTokens: settings.maxTokens,
         startupTimeoutSeconds: settings.startupTimeoutSeconds,
+        thinkingMode: settings.thinkingMode,
         learnedContext,
       });
       const reply = (result.reply || '').trim();
       if (!reply) throw new Error('AI returned an empty response. Check the selected GGUF model or llama-server log.');
+      const thinking = (result.thinkingSummary || '').trim();
       const timing = result.totalMs ? `\n\n⏱️ ${Math.round(result.totalMs / 1000)}s` : '';
-      setMessages(current => [...current, {role: 'assistant', text: reply + timing}]);
+      const visibleReply = thinking && settings.thinkingMode
+        ? `🧠 စဉ်းစားပုံအကျဉ်း\n${thinking}\n\n💬 အဖြေ\n${reply}${timing}`
+        : reply + timing;
+      setMessages(current => [...current, {role: 'assistant', text: visibleReply}]);
     } catch (error) {
       const text = error instanceof Error ? error.message : String(error);
       setMessages(current => [...current, {role: 'assistant', text: '❌ ' + text}]);
@@ -334,6 +341,8 @@ export default function WebApp() {
               <div style={{fontSize:9,color:'#697386',marginTop:9,lineHeight:1.5}}>Key ကို GitHub/source code ထဲ မထည့်ထားပါ။ ဒီဖုန်းရဲ့ local storage ထဲမှာပဲ သိမ်းထားပါတယ်။</div>
             </div>
             <p style={{color:'#8993a6',fontSize:13,lineHeight:1.6}}>AI engine ကို ဒီဖုန်းထဲမှာပဲ ချိန်ညှိနိုင်ပါတယ်။ Model သို့မဟုတ် engine setting ပြောင်းပြီးနောက် နောက်မေးခွန်းမှာ server ကို အလိုအလျောက် restart လုပ်ပေးပါမယ်။</p>
+            {row('Thinking Mode', <button onClick={()=>saveSettings({...settings,thinkingMode:!settings.thinkingMode})} style={{width:'100%',padding:12,borderRadius:12,border:'1px solid #2b3444',background:settings.thinkingMode?'#1a1835':'#0c1119',color:settings.thinkingMode?'#b9a8ff':'#d6dce7',fontWeight:750}}>{settings.thinkingMode?'🧠 ON · concise reasoning summary':'⚡ OFF · fastest answer'}</button>)}
+            <div style={{fontSize:11,color:'#7f899b',lineHeight:1.5,marginTop:-4,marginBottom:8}}>ON ဖြစ်ရင် Myk က private chain-of-thought ကို မပြဘဲ မေးခွန်းကို ဘယ်လိုဖြေမလဲဆိုတဲ့ အကျဉ်းချုပ် reasoning ကိုသာ ပြပါမယ်။</div>
             {row('Context Size', <select value={settings.contextSize} onChange={e=>saveSettings({...settings,contextSize:Number(e.target.value)})} style={{width:'100%',padding:12,borderRadius:12,background:'#0c1119',color:'#fff',border:'1px solid #2b3444'}}>{[512,1024,2048,4096].map(v=><option key={v} value={v}>{v}</option>)}</select>)}
             {row('CPU Threads', <select value={settings.threads} onChange={e=>saveSettings({...settings,threads:Number(e.target.value)})} style={{width:'100%',padding:12,borderRadius:12,background:'#0c1119',color:'#fff',border:'1px solid #2b3444'}}>{[1,2,3,4,5,6,7,8].map(v=><option key={v} value={v}>{v}</option>)}</select>)}
             {row('Temperature', <input type="number" min="0" max="1.5" step="0.1" value={settings.temperature} onChange={e=>saveSettings({...settings,temperature:Number(e.target.value)})} style={{width:'100%',boxSizing:'border-box',padding:12,borderRadius:12,background:'#0c1119',color:'#fff',border:'1px solid #2b3444'}} />)}
