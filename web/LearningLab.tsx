@@ -116,8 +116,8 @@ export default function LearningLab({
         threads: Math.min(8, Math.max(1, settings.threads)),
         temperature: settings.temperature,
         maxTokens: Math.max(256, settings.maxTokens),
-        startupTimeoutSeconds: settings.startupTimeoutSeconds,
-        responseTimeoutSeconds: Math.max(20, settings.responseTimeoutSeconds),
+        startupTimeoutSeconds: Math.max(300, settings.startupTimeoutSeconds),
+        responseTimeoutSeconds: Math.max(60, settings.responseTimeoutSeconds),
         thinkingMode: false,
         learnedContext: approvedContext,
       });
