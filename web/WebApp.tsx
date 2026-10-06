@@ -323,7 +323,7 @@ export default function WebApp() {
         elapsedMs = result.elapsedMs;
       }
       if (!reply) throw new Error('AI returned an empty response.');
-      setMessages(current => [...current, {role: 'assistant', text: reply + `\\n\\n⏱️ ${Math.round(elapsedMs / 1000)}s · ${chatMode === 'padauk' ? 'Padauk' : selectedModel}`}]);
+      setMessages(current => [...current, {role: 'assistant', text: reply + `\n\n⏱️ ${Math.round(elapsedMs / 1000)}s · ${chatMode === 'padauk' ? 'Padauk' : selectedModel}`}]);
     } catch (error) {
       const text = error instanceof Error ? error.message : String(error);
       setMessages(current => [...current, {role: 'assistant', text: '❌ ' + text}]);
@@ -358,7 +358,8 @@ export default function WebApp() {
         </div>
       </header>
 
-      <style>{'@keyframes mykBrainPulse{0%,100%{opacity:.38;transform:scale(.88);filter:brightness(.65)}50%{opacity:1;transform:scale(1.08);filter:brightness(1.45)}}'}</style>\n      <main style={{maxWidth:920,margin:'0 auto',minHeight:'calc(100vh - 64px)'}}>
+      <style>{'@keyframes mykBrainPulse{0%,100%{opacity:.38;transform:scale(.88);filter:brightness(.65)}50%{opacity:1;transform:scale(1.08);filter:brightness(1.45)}}'}</style>
+      <main style={{maxWidth:920,margin:'0 auto',minHeight:'calc(100vh - 64px)'}}>
         {tab === 'chat' && (
           <section style={{padding:'18px 15px 145px'}}>
             <div style={{display:'flex',gap:7,marginBottom:10}}>
