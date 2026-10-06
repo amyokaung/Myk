@@ -235,7 +235,7 @@ export default function WebApp() {
     setBusy(false);
     setMessages([]);
     setMessage('');
-    setTab('chat');
+    setTab(tab === 'onlineChat' ? 'onlineChat' : 'localChat');
   };
 
   const copyMessage = async (text: string, index: number) => {
