@@ -58,7 +58,7 @@ jobs:
           path: |
             cpp/llama.cpp
             cpp/llama-build
-          key: myk-llama-arm64-v1-${{ runner.os }}-${{ hashFiles('.github/workflows/capacitor.yml') }}
+          key: myk-llama-arm64-gemma4-v2-${{ runner.os }}-${{ hashFiles('.github/workflows/capacitor.yml') }}
 
       - name: Build llama-server for Android arm64
         shell: bash
