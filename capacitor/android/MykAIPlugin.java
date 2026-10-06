@@ -313,7 +313,7 @@ public class MykAIPlugin extends Plugin {
         int contextSize = call.getInt("contextSize", 1024);
         int threads = call.getInt("threads", 4);
         double temperature = call.getDouble("temperature", 0.7);
-        int maxTokens = call.getInt("maxTokens", 512);
+        int maxTokens = call.getInt("maxTokens", 128);
         int startupTimeoutSeconds = call.getInt("startupTimeoutSeconds", 120);
         int responseTimeoutSeconds = call.getInt("responseTimeoutSeconds", 10);
         boolean thinkingMode = call.getBoolean("thinkingMode", false);
