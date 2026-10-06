@@ -11,6 +11,17 @@ export interface DownloadableModel {
 
 export const MODEL_CATALOG: DownloadableModel[] = [
   {
+    id: 'padauk-i1-iq2-s',
+    name: 'AI4Burmese Padauk i1-IQ2_S · Phone',
+    filename: 'ai4burmese-padauk.i1-IQ2_S.gguf',
+    url: 'https://huggingface.co/mradermacher/ai4burmese-padauk-i1-GGUF/resolve/main/ai4burmese-padauk.i1-IQ2_S.gguf',
+    sizeBytes: 3680000000,
+    recommended: true,
+    description: 'Smaller Padauk quant for phones; less memory than Q4_K_M.',
+    tags: ['Padauk', 'Burmese', 'Gemma 4', 'Phone', '3.7GB'],
+  },
+
+  {
     id: 'qwen3-1.7b-q4km',
     name: 'Qwen3 1.7B · Q4_K_M',
     filename: 'Qwen3-1.7B-Q4_K_M.gguf',
