@@ -39,12 +39,9 @@ public class MykModelPlugin extends Plugin {
     public void pickModel(PluginCall call) {
         Intent intent = new Intent(Intent.ACTION_OPEN_DOCUMENT);
         intent.addCategory(Intent.CATEGORY_OPENABLE);
+        // File managers often do not register .gguf with a MIME type.
+        // Use */* and validate the .gguf extension after selection.
         intent.setType("*/*");
-        intent.putExtra(Intent.EXTRA_MIME_TYPES, new String[]{
-                "application/octet-stream",
-                "application/x-gguf",
-                "*/*"
-        });
         startActivityForResult(call, intent, "modelPicked");
     }
 
@@ -315,6 +312,11 @@ public class MykModelPlugin extends Plugin {
 
         Uri uri = result.getData().getData();
         String name = queryDisplayName(uri);
+        if (name == null || name.trim().isEmpty()) {
+            String last = uri.getLastPathSegment();
+            if (last != null && last.contains("%2F")) last = last.substring(last.lastIndexOf("%2F") + 3);
+            name = last;
+        }
 
         if (name == null || !name.toLowerCase().endsWith(".gguf")) {
             call.reject("Please select a .gguf model file");
