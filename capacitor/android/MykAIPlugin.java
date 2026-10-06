@@ -96,7 +96,7 @@ public class MykAIPlugin extends Plugin {
         // variables after the command was already constructed, so the server
         // still received the old context/thread values.
         long modelBytes = model.length();
-        long safetyBytes = 900L * 1024L * 1024L;
+        long safetyBytes = 512L * 1024L * 1024L;
         if (memory.availMem < modelBytes + safetyBytes) {
             throw new Exception("Padauk needs more free RAM to start. Model="
                     + String.format(java.util.Locale.US, "%.2f GB", modelBytes / 1073741824.0)
@@ -105,10 +105,14 @@ public class MykAIPlugin extends Plugin {
                     + ". This phone cannot safely load this Padauk quantization. Use the smaller Padauk IQ1_S/IQ2 quantization from Models, or close other apps and retry.");
         }
 
-        if (memory.availMem < 7L * 1024L * 1024L * 1024L) {
-            contextSize = Math.min(contextSize, 256);
-            threads = Math.min(threads, 2);
+        if (memory.availMem < 6L * 1024L * 1024L * 1024L) {
+            contextSize = Math.min(contextSize, 384);
+            threads = Math.min(threads, 4);
             Log.w(TAG, "Low-memory Padauk profile applied: context=" + contextSize + " threads=" + threads);
+        }
+        if (modelBytes <= 4L * 1024L * 1024L * 1024L) {
+            contextSize = Math.min(contextSize, 512);
+            threads = Math.min(threads, 4);
         }
 
         List<String> command = new ArrayList<>();
@@ -137,6 +141,10 @@ public class MykAIPlugin extends Plugin {
         command.add("off");
         command.add("--reasoning-format");
         command.add("none");
+        command.add("--cache-type-k");
+        command.add("q8_0");
+        command.add("--cache-type-v");
+        command.add("q8_0");
 
         ProcessBuilder builder = new ProcessBuilder(command);
         builder.redirectErrorStream(true);
@@ -345,8 +353,8 @@ public class MykAIPlugin extends Plugin {
         int threads = call.getInt("threads", 8);
         double temperature = call.getDouble("temperature", 0.7);
         int maxTokens = call.getInt("maxTokens", 128);
-        int startupTimeoutSeconds = call.getInt("startupTimeoutSeconds", 300);
-        int responseTimeoutSeconds = call.getInt("responseTimeoutSeconds", 60);
+        int startupTimeoutSeconds = call.getInt("startupTimeoutSeconds", 180);
+        int responseTimeoutSeconds = call.getInt("responseTimeoutSeconds", 45);
         boolean thinkingMode = call.getBoolean("thinkingMode", false);
         String learnedContext = call.getString("learnedContext", "");
 
