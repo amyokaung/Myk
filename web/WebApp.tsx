@@ -12,6 +12,7 @@ interface EngineSettings {
   temperature: number;
   maxTokens: number;
   startupTimeoutSeconds: number;
+  responseTimeoutSeconds: number;
   thinkingMode: boolean;
 }
 
@@ -20,7 +21,8 @@ const DEFAULT_SETTINGS: EngineSettings = {
   threads: 4,
   temperature: 0.5,
   maxTokens: 256,
-  startupTimeoutSeconds: 600,
+  startupTimeoutSeconds: 120,
+  responseTimeoutSeconds: 10,
   thinkingMode: false,
 };
 
@@ -205,6 +207,7 @@ export default function WebApp() {
         temperature: settings.temperature,
         maxTokens: settings.maxTokens,
         startupTimeoutSeconds: settings.startupTimeoutSeconds,
+        responseTimeoutSeconds: settings.responseTimeoutSeconds,
         thinkingMode: settings.thinkingMode,
         learnedContext,
       });
