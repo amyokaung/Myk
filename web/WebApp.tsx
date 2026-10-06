@@ -253,7 +253,7 @@ export default function WebApp() {
         </div>
       </header>
 
-      <main style={{maxWidth:920,margin:'0 auto',minHeight:'calc(100vh - 64px)'}}>
+      <style>{'@keyframes mykBrainPulse{0%,100%{opacity:.38;transform:scale(.88);filter:brightness(.65)}50%{opacity:1;transform:scale(1.08);filter:brightness(1.45)}}'}</style>\n      <main style={{maxWidth:920,margin:'0 auto',minHeight:'calc(100vh - 64px)'}}>
         {tab === 'chat' && (
           <section style={{padding:'18px 15px 145px'}}>
             {messages.length === 0 ? (
@@ -282,7 +282,12 @@ export default function WebApp() {
                 </div>
               </div>
             ))}
-            {busy && <div style={{display:'flex',gap:10,margin:'20px 0'}}><div style={{width:30,height:30,borderRadius:10,display:'grid',placeItems:'center',background:'#171d29',border:'1px solid #2a3342',fontWeight:800,fontSize:12}}>M</div><div style={{color:'#8e98aa',paddingTop:5}}>Myk is thinking ···</div></div>}
+            {busy && <div style={{display:'flex',gap:12,margin:'20px 0',alignItems:'center'}}>
+              <div style={{width:42,height:42,borderRadius:14,display:'grid',placeItems:'center',background:'radial-gradient(circle,#18244a 0%,#111827 65%,#0d1119 100%)',border:'1px solid #33466f',boxShadow:'0 0 18px rgba(91,91,255,.35)',animation:'mykBrainPulse 1.25s ease-in-out infinite'}}>
+                <span style={{fontSize:24,filter:'drop-shadow(0 0 6px rgba(111,140,255,.9))'}}>🧠</span>
+              </div>
+              <div style={{color:'#8e98aa',fontSize:14}}>စဉ်းစားနေပါတယ်…</div>
+            </div>}
           </section>
         )}
 
