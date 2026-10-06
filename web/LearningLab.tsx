@@ -1,6 +1,7 @@
 import React, {useMemo, useState} from 'react';
-import MykAI from './native/MykAI';
-import {generateLesson, judgeLesson, type GeminiLesson} from './gemini';
+import {chatWithOpenRouter} from './openrouterApi';
+
+interface OpenRouterLesson { question: string; idealAnswer: string; tags: string[]; }
 import {addLearningExample, deleteLearningExample, exportLearningJsonl, loadLearningExamples, saveLearningExamples, type LearningExample} from './learning';
 
 interface Props {
@@ -13,16 +14,16 @@ interface Props {
     maxTokens: number;
     startupTimeoutSeconds: number;
   };
-  geminiApiKey: string;
-  onGeminiKeyNeeded: () => void;
+  openRouterApiKey: string;
+  onOpenRouterKeyNeeded: () => void;
 }
 
-export default function LearningLab({modelName, modelsCount, settings, geminiApiKey, onGeminiKeyNeeded}: Props) {
+export default function LearningLab({openRouterApiKey, onOpenRouterKeyNeeded}: Props) {
   const [topic, setTopic] = useState('');
   const [autoLearn, setAutoLearn] = useState(true);
   const [working, setWorking] = useState(false);
   const [status, setStatus] = useState('');
-  const [lesson, setLesson] = useState<GeminiLesson | null>(null);
+  const [lesson, setLesson] = useState<OpenRouterLesson | null>(null);
   const [mykAnswer, setMykAnswer] = useState('');
   const [score, setScore] = useState<number | null>(null);
   const [feedback, setFeedback] = useState('');
@@ -31,44 +32,75 @@ export default function LearningLab({modelName, modelsCount, settings, geminiApi
   const approved = useMemo(() => examples.filter(x => x.status === 'approved'), [examples]);
 
   const startLearning = async () => {
-    if (!geminiApiKey.trim()) {
-      onGeminiKeyNeeded();
+    if (!openRouterApiKey.trim()) {
+      onOpenRouterKeyNeeded();
       return;
     }
     if (!topic.trim() || working) return;
-    if (!modelsCount) {
-      setStatus('အရင်ဆုံး Models ထဲမှာ GGUF model တစ်ခုထည့်ပါ။');
-      return;
-    }
 
     setWorking(true);
-    setStatus('Gemini က lesson ပြင်ဆင်နေပါတယ်…');
+    setStatus('OpenRouter က lesson ပြင်ဆင်နေပါတယ်…');
     setLesson(null);
     setMykAnswer('');
     setScore(null);
     setFeedback('');
 
     try {
-      const nextLesson = await generateLesson(geminiApiKey, topic);
-      setLesson(nextLesson);
-      setStatus('Myk ကို သီးသန့် test လုပ်နေပါတယ်…');
-
-      const selected = modelName === 'No GGUF model selected' ? '' : modelName;
-      const result = await MykAI.chat({
-        message: nextLesson.question,
-        modelName: selected,
-        contextSize: settings.contextSize,
-        threads: settings.threads,
-        temperature: settings.temperature,
-        maxTokens: settings.maxTokens,
-        startupTimeoutSeconds: settings.startupTimeoutSeconds,
-        historyJson: '[]',
+      const lessonPrompt = [
+        'You are the teacher for Myk.',
+        'Create ONE high-quality Burmese learning example about the requested topic.',
+        'Return ONLY valid JSON with keys: question, idealAnswer, tags.',
+        'Use natural Burmese. Keep the ideal answer accurate, useful, and concise.',
+        'Topic: ' + topic.trim(),
+      ].join('\\n');
+      const lessonRaw = await chatWithOpenRouter({
+        apiKey: openRouterApiKey,
+        model: 'openrouter/auto',
+        message: lessonPrompt,
+        maxTokens: 400,
+        temperature: 0.2,
       });
-      const answer = result.reply || '';
+      const cleaned = lessonRaw.reply.replace(/^\uFEFF/, '').trim().replace(/^\`\`\`json\s*/i, '').replace(/^\`\`\`\s*/i, '').replace(/\s*\`\`\`$/i, '');
+      const nextLesson = JSON.parse(cleaned) as OpenRouterLesson;
+      if (!nextLesson.question || !nextLesson.idealAnswer) throw new Error('OpenRouter lesson format မမှန်ပါ။');
+      nextLesson.tags = Array.isArray(nextLesson.tags) ? nextLesson.tags.map(String).slice(0, 8) : [];
+      setLesson(nextLesson);
+      setStatus('OpenRouter က Myk answer ကို test လုပ်နေပါတယ်…');
+
+      const answerResult = await chatWithOpenRouter({
+        apiKey: openRouterApiKey,
+        model: 'openrouter/auto',
+        message: nextLesson.question,
+        maxTokens: 300,
+        temperature: 0.4,
+      });
+      const answer = answerResult.reply || '';
       setMykAnswer(answer);
 
-      setStatus('Gemini Judge က အဖြေကို စစ်နေပါတယ်…');
-      const judged = await judgeLesson(geminiApiKey, nextLesson, answer);
+      setStatus('OpenRouter Judge က အဖြေကို စစ်နေပါတယ်…');
+      const judgePrompt = [
+        'You are a strict but fair judge evaluating a local AI named Myk.',
+        'Compare Myk answer with the ideal answer.',
+        'Score 0-100 for factual correctness, relevance, Burmese naturalness, and completeness.',
+        'Return ONLY valid JSON with keys: score, feedback.',
+        'Do not punish different wording when the meaning is correct.',
+        'Question: ' + nextLesson.question,
+        'Ideal answer: ' + nextLesson.idealAnswer,
+        'Myk answer: ' + answer,
+      ].join('\\n');
+      const judgeRaw = await chatWithOpenRouter({
+        apiKey: openRouterApiKey,
+        model: 'openrouter/auto',
+        message: judgePrompt,
+        maxTokens: 220,
+        temperature: 0.1,
+      });
+      const judgeCleaned = judgeRaw.reply.replace(/^\uFEFF/, '').trim().replace(/^\`\`\`json\s*/i, '').replace(/^\`\`\`\s*/i, '').replace(/\s*\`\`\`$/i, '');
+      const judgedJson = JSON.parse(judgeCleaned);
+      const judged = {
+        score: Math.max(0, Math.min(100, Number(judgedJson.score) || 0)),
+        feedback: String(judgedJson.feedback || ''),
+      };
       setScore(judged.score);
       setFeedback(judged.feedback);
 
@@ -163,7 +195,7 @@ export default function LearningLab({modelName, modelsCount, settings, geminiApi
             <div style={{marginTop:6,color:'#cbd3df',fontSize:12,lineHeight:1.65,whiteSpace:'pre-wrap'}}>{mykAnswer || '—'}</div>
             <div style={{display:'flex',gap:8,alignItems:'center',marginTop:13}}>
               <div style={{fontSize:25,fontWeight:850}}>{score === null ? '—' : score}</div>
-              <div style={{fontSize:10,color:'#7f899b'}}> / 100<br/>Gemini Judge score</div>
+              <div style={{fontSize:10,color:'#7f899b'}}> / 100<br/>OpenRouter Judge score</div>
             </div>
             {feedback && <div style={{marginTop:8,fontSize:11,color:'#9ba6b8',lineHeight:1.55}}>{feedback}</div>}
           </div>
