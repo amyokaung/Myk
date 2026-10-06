@@ -180,7 +180,7 @@ public class MykAIPlugin extends Plugin {
     }
 
     private JSONObject chatRequest(String message, String modelName, String historyJson,
-                               double temperature, int maxTokens, boolean thinkingMode, String learnedContext) throws Exception {
+                               double temperature, int maxTokens, boolean thinkingMode, String learnedContext, int responseTimeoutSeconds) throws Exception {
         JSONObject body = new JSONObject();
         JSONArray messages = new JSONArray();
 
@@ -245,7 +245,7 @@ public class MykAIPlugin extends Plugin {
                 new URL("http://127.0.0.1:" + PORT + "/v1/chat/completions").openConnection();
         c.setRequestMethod("POST");
         c.setConnectTimeout(3000);
-        c.setReadTimeout(300_000);
+        c.setReadTimeout(Math.max(5, Math.min(60, responseTimeoutSeconds)) * 1000);
         c.setDoOutput(true);
         c.setRequestProperty("Content-Type", "application/json");
 
@@ -314,7 +314,8 @@ public class MykAIPlugin extends Plugin {
         int threads = call.getInt("threads", 4);
         double temperature = call.getDouble("temperature", 0.7);
         int maxTokens = call.getInt("maxTokens", 512);
-        int startupTimeoutSeconds = call.getInt("startupTimeoutSeconds", 600);
+        int startupTimeoutSeconds = call.getInt("startupTimeoutSeconds", 120);
+        int responseTimeoutSeconds = call.getInt("responseTimeoutSeconds", 10);
         boolean thinkingMode = call.getBoolean("thinkingMode", false);
         String learnedContext = call.getString("learnedContext", "");
 
@@ -336,7 +337,7 @@ public class MykAIPlugin extends Plugin {
                 File model = new File(new File(getContext().getFilesDir(), "models"), modelName);
                 long startupMs = startServer(model, contextSize, threads, startupTimeoutSeconds);
                 long generationStartMs = System.currentTimeMillis();
-                JSONObject chatResult = chatRequest(message, modelName, historyJson, temperature, maxTokens, thinkingMode, learnedContext);
+                JSONObject chatResult = chatRequest(message, modelName, historyJson, temperature, maxTokens, thinkingMode, learnedContext, responseTimeoutSeconds);
                 long generationMs = System.currentTimeMillis() - generationStartMs;
                 JSObject result = new JSObject();
                 result.put("reply", chatResult.optString("reply", ""));
