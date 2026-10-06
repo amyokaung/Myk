@@ -133,7 +133,7 @@ public class MykAIPlugin extends Plugin {
         command.add("-b");
         command.add("16");
         command.add("-ub");
-        command.add("16");
+        command.add("8");
         command.add("-np");
         command.add("1");
         command.add("--no-warmup");
@@ -204,20 +204,19 @@ public class MykAIPlugin extends Plugin {
             Thread.sleep(750);
         }
 
-        long freeRam = 0;
         am = (ActivityManager) getContext().getSystemService(Context.ACTIVITY_SERVICE);
         memory = new ActivityManager.MemoryInfo();
         if (am != null) {
             am.getMemoryInfo(memory);
-            freeRam = memory.availMem;
         }
+        long currentFreeRam = memory.availMem;
         String tail;
         synchronized (recentLogs) {
             tail = recentLogs.toString();
         }
         throw new Exception("Padauk local AI startup timed out. Model="
                 + String.format(java.util.Locale.US, "%.2f GB", model.length() / 1073741824.0)
-                + ", free RAM=" + String.format(java.util.Locale.US, "%.2f GB", freeRam / 1073741824.0)
+                + ", free RAM=" + String.format(java.util.Locale.US, "%.2f GB", currentFreeRam / 1073741824.0)
                 + ". The model may be too large for current phone memory. Try closing other apps or a smaller Padauk quantization. Last llama log: " + tail.trim());
     }
 
