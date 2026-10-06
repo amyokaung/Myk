@@ -10,6 +10,7 @@ export interface MykAIPlugin {
     temperature?: number;
     maxTokens?: number;
     startupTimeoutSeconds?: number;
+    responseTimeoutSeconds?: number;
     thinkingMode?: boolean;
     learnedContext?: string;
   }): Promise<{reply: string; thinkingSummary?: string; startupMs?: number; generationMs?: number; totalMs?: number}>;
