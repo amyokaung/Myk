@@ -104,11 +104,12 @@ public class MykAIPlugin extends Plugin {
         command.add("-np");
         command.add("1");
         command.add("--no-warmup");
-        // Keep the model's native reasoning capability available. Fast/Thinking
-        // behavior is controlled per request below so the same server can serve
-        // both modes without restarting just for the UI toggle.
+        // Padauk is a Gemma 4 chat model. Explicit Jinja enables its chat template,
+        // while --reasoning off prevents internal thinking from consuming the mobile
+        // completion budget.
+        command.add("--jinja");
         command.add("--reasoning");
-        command.add("auto");
+        command.add("off");
 
         ProcessBuilder builder = new ProcessBuilder(command);
         builder.redirectErrorStream(true);
@@ -238,10 +239,8 @@ public class MykAIPlugin extends Plugin {
         body.put("temperature", Math.max(0.0, Math.min(2.0, temperature)));
         body.put("max_tokens", Math.max(16, Math.min(2048, maxTokens)));
         body.put("stream", false);
-        // Fast mode explicitly disables model reasoning; Thinking Mode asks for
-        // a short user-facing summary instead of exposing private chain-of-thought.
-        body.put("reasoning_effort", thinkingMode ? "low" : "none");
-        body.put("reasoning_format", "none");
+        // Server-side --reasoning off is authoritative for Padauk/Gemma 4.
+        // Do not send client-side reasoning controls here.
 
         HttpURLConnection c = (HttpURLConnection)
                 new URL("http://127.0.0.1:" + PORT + "/v1/chat/completions").openConnection();
