@@ -400,7 +400,6 @@ export default function WebApp() {
             <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:14}}>
               <div><div style={{fontSize:18,fontWeight:850}}>{tab === 'localChat' ? '🎓 Local AI · Padauk' : '👨‍🏫 Online AI · Gemini / GPT'}</div>
               <div style={{fontSize:10,color:'#778296',marginTop:3}}>{tab === 'localChat' ? 'Offline GGUF engine' : 'OpenRouter API'}</div></div>
-              <button onClick={()=>setTab('home')} style={{padding:'8px 11px',borderRadius:10,border:'1px solid #283243',background:'#111620',color:'#aeb8c8',fontSize:11}}>Menu</button>
             </div>
             {messages.length === 0 ? (
               <div style={{minHeight:'62vh',display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',textAlign:'center'}}>
@@ -546,7 +545,6 @@ export default function WebApp() {
         <div style={{textAlign:'center',fontSize:9,color:'#697386',marginTop:6}}>{tab === 'localChat' ? 'Offline · Padauk Student' : 'Online · Gemini / ChatGPT Teacher'}</div>
       </div>}
 
-      {tab !== 'home' && <button onClick={()=>setTab('home')} style={{position:'fixed',right:14,bottom:92,zIndex:9,padding:'9px 13px',borderRadius:13,border:'1px solid #2a3342',background:'#0c1018',color:'#aeb8c8',fontSize:11}}>☰ Menu</button>}
 
     </div>
   );
