@@ -5,7 +5,7 @@ import {registerPlugin} from '@capacitor/core';
 import {MODEL_CATALOG, formatModelSize, type DownloadableModel} from './modelCatalog';
 import LearningLab from './LearningLab';
 import {loadLearningExamples} from './learning';
-import {listGeminiModels, testGeminiModel, type GeminiModel, type GeminiModelTestResult} from './geminiApi';
+import {chatWithOpenRouter, listOpenRouterModels, testOpenRouterModel, type OpenRouterModel, type OpenRouterTestResult} from './openrouterApi';
 
 interface EngineSettings {
   contextSize: number;
@@ -42,7 +42,8 @@ const MykModelDownload = registerPlugin<MykModelDownloadPlugin>('MykModel');
 
 type Tab = 'chat' | 'learn' | 'models' | 'settings';
 const SETTINGS_KEY = 'myk-engine-settings';
-const GEMINI_KEY = 'myk-gemini-api-key';
+const OPENROUTER_KEY = 'myk-openrouter-api-key';
+const OPENROUTER_MODEL_KEY = 'myk-openrouter-model';
 
 export default function WebApp() {
   const [tab, setTab] = useState<Tab>('chat');
@@ -52,13 +53,14 @@ export default function WebApp() {
   const [models, setModels] = useState<ModelInfo[]>([]);
   const [busy, setBusy] = useState(false);
   const [copiedIndex, setCopiedIndex] = useState<number | null>(null);
-  const [geminiApiKey, setGeminiApiKey] = useState(() => localStorage.getItem(GEMINI_KEY) || '');
-  const [geminiModels, setGeminiModels] = useState<GeminiModel[]>([]);
-  const [geminiLoading, setGeminiLoading] = useState(false);
-  const [geminiTesting, setGeminiTesting] = useState(false);
-  const [geminiSelectedModel, setGeminiSelectedModel] = useState('');
-  const [geminiResult, setGeminiResult] = useState<GeminiModelTestResult | null>(null);
-  const [geminiError, setGeminiError] = useState('');
+  const [openRouterApiKey, setOpenRouterApiKey] = useState(() => localStorage.getItem(OPENROUTER_KEY) || '');
+  const [openRouterModels, setOpenRouterModels] = useState<OpenRouterModel[]>([]);
+  const [openRouterLoading, setOpenRouterLoading] = useState(false);
+  const [openRouterTesting, setOpenRouterTesting] = useState(false);
+  const [openRouterSelectedModel, setOpenRouterSelectedModel] = useState(() => localStorage.getItem(OPENROUTER_MODEL_KEY) || '');
+  const [openRouterSearch, setOpenRouterSearch] = useState('');
+  const [openRouterResult, setOpenRouterResult] = useState<OpenRouterTestResult | null>(null);
+  const [openRouterError, setOpenRouterError] = useState('');
   const [downloadingId, setDownloadingId] = useState<string | null>(null);
   const [downloadBytes, setDownloadBytes] = useState(0);
   const [downloadTotal, setDownloadTotal] = useState(0);
@@ -82,57 +84,56 @@ export default function WebApp() {
     localStorage.setItem(SETTINGS_KEY, JSON.stringify(DEFAULT_SETTINGS));
   };
 
-  const saveGeminiKey = () => {
-    const key = geminiApiKey.trim();
-    setGeminiApiKey(key);
-    localStorage.setItem(GEMINI_KEY, key);
-    setGeminiError('');
-    setGeminiResult(null);
+  const saveOpenRouterKey = () => {
+    const key = openRouterApiKey.trim();
+    setOpenRouterApiKey(key);
+    localStorage.setItem(OPENROUTER_KEY, key);
+    setOpenRouterError('');
+    setOpenRouterResult(null);
   };
 
-  const discoverGeminiModels = async () => {
-    const key = geminiApiKey.trim();
+  const discoverOpenRouterModels = async () => {
+    const key = openRouterApiKey.trim();
     if (!key) {
-      setGeminiError('Gemini API Key ထည့်ပြီး Save Key ကိုနှိပ်ပါ။');
+      setOpenRouterError('OpenRouter API Key ထည့်ပြီး Save Key ကိုနှိပ်ပါ။');
       return;
     }
-    setGeminiLoading(true);
-    setGeminiError('');
-    setGeminiResult(null);
+    setOpenRouterLoading(true);
+    setOpenRouterError('');
+    setOpenRouterResult(null);
     try {
-      const found = await listGeminiModels(key);
-      setGeminiModels(found);
-      if (found.length) {
-        setGeminiSelectedModel(current => found.some(m => m.baseModelId === current) ? current : found[0].baseModelId);
-      } else {
-        setGeminiSelectedModel('');
-        setGeminiError('ဒီ API Key နဲ့ generateContent သုံးလို့ရတဲ့ model မတွေ့ပါ။');
-      }
+      const found = await listOpenRouterModels(key);
+      setOpenRouterModels(found);
+      const preferred = localStorage.getItem(OPENROUTER_MODEL_KEY) || '';
+      const next = found.some(m => m.id === preferred) ? preferred : found[0]?.id || '';
+      setOpenRouterSelectedModel(next);
+      if (next) localStorage.setItem(OPENROUTER_MODEL_KEY, next);
+      if (!found.length) setOpenRouterError('ဒီ OpenRouter Key နဲ့ text chat model မတွေ့ပါ။');
     } catch (error) {
-      setGeminiModels([]);
-      setGeminiSelectedModel('');
-      setGeminiError(error instanceof Error ? error.message : String(error));
+      setOpenRouterModels([]);
+      setOpenRouterSelectedModel('');
+      setOpenRouterError(error instanceof Error ? error.message : String(error));
     } finally {
-      setGeminiLoading(false);
+      setOpenRouterLoading(false);
     }
   };
 
-  const runGeminiTest = async () => {
-    const selected = geminiModels.find(m => m.baseModelId === geminiSelectedModel);
+  const runOpenRouterTest = async () => {
+    const selected = openRouterModels.find(m => m.id === openRouterSelectedModel);
     if (!selected) {
-      setGeminiError('အရင်ဆုံး model list ကို Load လုပ်ပြီး model ရွေးပါ။');
+      setOpenRouterError('အရင်ဆုံး model list ကို Load လုပ်ပြီး model ရွေးပါ။');
       return;
     }
-    setGeminiTesting(true);
-    setGeminiError('');
+    setOpenRouterTesting(true);
+    setOpenRouterError('');
     try {
-      const result = await testGeminiModel(geminiApiKey, selected);
-      setGeminiResult(result);
-      if (!result.ok) setGeminiError(result.error || 'Model test failed.');
+      const result = await testOpenRouterModel(openRouterApiKey, selected);
+      setOpenRouterResult(result);
+      if (!result.ok) setOpenRouterError(result.error || 'Model test failed.');
     } catch (error) {
-      setGeminiError(error instanceof Error ? error.message : String(error));
+      setOpenRouterError(error instanceof Error ? error.message : String(error));
     } finally {
-      setGeminiTesting(false);
+      setOpenRouterTesting(false);
     }
   };
 
@@ -237,49 +238,41 @@ export default function WebApp() {
     const value = message.trim();
     if (!value || busy) return;
 
-    if (!models.length) {
-      alert('အရင်ဆုံး Models ထဲက GGUF model တစ်ခုရွေးပါ။');
-      setTab('models');
+    const apiKey = openRouterApiKey.trim();
+    if (!apiKey) {
+      setMessages(current => [...current, {role: 'assistant', text: '❌ OpenRouter API Key မထည့်ရသေးပါ။ Settings → OpenRouter API သို့သွားပါ။'}]);
+      setTab('settings');
       return;
     }
 
-    const selected = modelName === 'No GGUF model selected' ? models[0]?.name : modelName;
-    if (!selected) return;
+    const selectedModel = openRouterSelectedModel || openRouterModels[0]?.id || '';
+    if (!selectedModel) {
+      setMessages(current => [...current, {role: 'assistant', text: '❌ OpenRouter model မရွေးရသေးပါ။ Settings → OpenRouter API → Check available models လုပ်ပါ။'}]);
+      setTab('settings');
+      return;
+    }
 
-    const history = messages.slice(-2);
-    const approvedLearning = loadLearningExamples().filter(x => x.status === 'approved').slice(0, 12);
-    const learnedContext = approvedLearning.map(x => `Q: ${x.question}\nA: ${x.idealAnswer}`).join('\n\n').slice(0, 1000);
-    const historyJson = JSON.stringify(history.map(item => ({
+    const history = messages.slice(-6).map(item => ({
       role: item.role,
-      content: item.text,
-    })));
+      content: item.text.replace(/\n\n⏱️.*$/s, ''),
+    }));
 
     setMessage('');
     setMessages(current => [...current, {role: 'user', text: value}]);
     setBusy(true);
 
     try {
-      const result = await MykAI.chat({
+      const result = await chatWithOpenRouter({
+        apiKey,
+        model: selectedModel,
         message: value,
-        modelName: selected,
-        historyJson,
-        contextSize: settings.contextSize,
-        threads: settings.threads,
-        temperature: settings.temperature,
+        history,
         maxTokens: settings.maxTokens,
-        startupTimeoutSeconds: settings.startupTimeoutSeconds,
-        responseTimeoutSeconds: settings.responseTimeoutSeconds,
-        thinkingMode: settings.thinkingMode,
-        learnedContext,
+        temperature: settings.temperature,
       });
       const reply = (result.reply || '').trim();
-      if (!reply) throw new Error('AI returned an empty response. Check the selected GGUF model or llama-server log.');
-      const thinking = (result.thinkingSummary || '').trim();
-      const timing = result.totalMs ? `\n\n⏱️ ${Math.round((result.generationMs || result.totalMs) / 1000)}s · total ${Math.round(result.totalMs / 1000)}s` : '';
-      const visibleReply = thinking && settings.thinkingMode
-        ? `🧠 စဉ်းစားပုံအကျဉ်း\n${thinking}\n\n💬 အဖြေ\n${reply}${timing}`
-        : reply + timing;
-      setMessages(current => [...current, {role: 'assistant', text: visibleReply}]);
+      if (!reply) throw new Error('OpenRouter returned an empty response.');
+      setMessages(current => [...current, {role: 'assistant', text: reply + `\\n\\n⏱️ ${Math.round(result.elapsedMs / 1000)}s · OpenRouter`}]);
     } catch (error) {
       const text = error instanceof Error ? error.message : String(error);
       setMessages(current => [...current, {role: 'assistant', text: '❌ ' + text}]);
@@ -321,7 +314,7 @@ export default function WebApp() {
               <div style={{minHeight:'62vh',display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',textAlign:'center'}}>
                 <div style={{width:68,height:68,borderRadius:22,display:'grid',placeItems:'center',background:'linear-gradient(135deg,#7c5cff,#4f8cff)',fontSize:30,fontWeight:900,boxShadow:'0 14px 40px rgba(92,92,255,.2)'}}>M</div>
                 <div style={{fontSize:27,fontWeight:800,marginTop:18}}>မင်္ဂလာပါ 👋</div>
-                <div style={{fontSize:14,color:'#8e98aa',lineHeight:1.7,marginTop:7}}>Myk ကို မေးလိုတာ မေးနိုင်ပါတယ်။<br/>အင်တာနက်မလိုဘဲ ဒီဖုန်းထဲမှာပဲ အလုပ်လုပ်ပါတယ်။</div>
+                <div style={{fontSize:14,color:'#8e98aa',lineHeight:1.7,marginTop:7}}>Myk ကို မေးလိုတာ မေးနိုင်ပါတယ်။<br/>Chat က OpenRouter API ကို အသုံးပြုပါတယ်။</div>
                 <div style={{marginTop:18,padding:'8px 12px',borderRadius:12,border:'1px solid #202837',background:'#0e131c',fontSize:11,color:'#aeb8ca'}}>
                   <span style={{display:'inline-block',width:7,height:7,borderRadius:99,background:'#35d07f',marginRight:7}}/>
                   {modelName === 'No GGUF model selected' ? 'Model မရွေးရသေးပါ' : modelName}
@@ -357,8 +350,8 @@ export default function WebApp() {
             modelName={modelName}
             modelsCount={models.length}
             settings={settings}
-            geminiApiKey={geminiApiKey}
-            onGeminiKeyNeeded={() => setTab('settings')}
+            openRouterApiKey={openRouterApiKey}
+            onOpenRouterKeyNeeded={() => setTab('settings')}
           />
         )}
 
@@ -399,39 +392,40 @@ export default function WebApp() {
           <section style={{margin:'22px 15px 110px',padding:18,borderRadius:20,background:'#10151f',border:'1px solid #202837'}}>
             <div style={{fontSize:24,fontWeight:800}}>Settings</div>
             <div style={{marginTop:16,padding:15,borderRadius:16,background:'linear-gradient(145deg,#15142a,#0c1119)',border:'1px solid #2c2a4a'}}>
-              <div style={{fontSize:10,color:'#9a92ff',fontWeight:800,letterSpacing:1}}>LEARNING LAB · GEMINI</div>
-              <div style={{fontSize:16,fontWeight:800,marginTop:5}}>Gemini API Key</div>
-              <div style={{fontSize:11,color:'#7f899b',marginTop:5,lineHeight:1.5}}>Learning Lab ရဲ့ Teacher / Judge အတွက် သီးသန့်သုံးမယ့် key ပါ။ ပုံမှန် Chat က Gemini ကို မခေါ်ပါ။</div>
-              <input type="password" value={geminiApiKey} onChange={e=>setGeminiApiKey(e.target.value)} placeholder="AIza..." autoComplete="off" style={{width:'100%',boxSizing:'border-box',marginTop:11,padding:12,borderRadius:11,border:'1px solid #30384a',background:'#080d15',color:'#fff',outline:0}} />
+              <div style={{fontSize:10,color:'#9a92ff',fontWeight:800,letterSpacing:1}}>OPENROUTER · ONLINE AI</div>
+              <div style={{fontSize:16,fontWeight:800,marginTop:5}}>OpenRouter API Key</div>
+              <div style={{fontSize:11,color:'#7f899b',marginTop:5,lineHeight:1.5}}>Myk Chat က အခု OpenRouter ကိုပဲ အသုံးပြုပါမယ်။ Gemini API ကို မသုံးပါ။</div>
+              <input type="password" value={openRouterApiKey} onChange={e=>setOpenRouterApiKey(e.target.value)} placeholder="sk-or-..." autoComplete="off" style={{width:'100%',boxSizing:'border-box',marginTop:11,padding:12,borderRadius:11,border:'1px solid #30384a',background:'#080d15',color:'#fff',outline:0}} />
               <div style={{display:'flex',gap:8,marginTop:9}}>
-                <button onClick={saveGeminiKey} style={{flex:1,padding:9,borderRadius:10,border:0,background:'#6558e8',color:'#fff',fontWeight:750}}>Save Key</button>
-                <button onClick={()=>{setGeminiApiKey('');localStorage.removeItem(GEMINI_KEY);setGeminiModels([]);setGeminiResult(null);setGeminiError('');}} style={{padding:'9px 12px',borderRadius:10,border:'1px solid #3a3038',background:'#181319',color:'#ff9fa8'}}>Clear</button>
+                <button onClick={saveOpenRouterKey} style={{flex:1,padding:9,borderRadius:10,border:0,background:'#6558e8',color:'#fff',fontWeight:750}}>Save Key</button>
+                <button onClick={()=>{setOpenRouterApiKey('');localStorage.removeItem(OPENROUTER_KEY);setOpenRouterModels([]);setOpenRouterSelectedModel('');localStorage.removeItem(OPENROUTER_MODEL_KEY);setOpenRouterResult(null);setOpenRouterError('');}} style={{padding:'9px 12px',borderRadius:10,border:'1px solid #3a3038',background:'#181319',color:'#ff9fa8'}}>Clear</button>
               </div>
-              <div style={{fontSize:9,color:'#697386',marginTop:9,lineHeight:1.5}}>Key ကို GitHub/source code ထဲ မထည့်ထားပါ။ ဒီဖုန်းရဲ့ local storage ထဲမှာပဲ သိမ်းထားပါတယ်။</div>
+              <div style={{fontSize:9,color:'#697386',marginTop:9,lineHeight:1.5}}>Key ကို source code ထဲ မထည့်ထားပါ။ ဒီဖုန်းရဲ့ local storage ထဲမှာပဲ သိမ်းထားပါတယ်။</div>
               <div style={{marginTop:14,paddingTop:14,borderTop:'1px solid #252c3a'}}>
-                <div style={{fontSize:12,fontWeight:800}}>Gemini API Model Test</div>
-                <div style={{fontSize:10,color:'#7f899b',marginTop:4,lineHeight:1.5}}>ဒီ key နဲ့ တကယ်ရရှိနိုင်ပြီး generateContent သုံးလို့ရတဲ့ models ကို Google API ကနေ တိုက်ရိုက်ရှာပြီး စမ်းပါမယ်။</div>
-                <button onClick={discoverGeminiModels} disabled={geminiLoading || !geminiApiKey.trim()} style={{marginTop:10,width:'100%',padding:10,borderRadius:10,border:'1px solid #3b3860',background:'#17152b',color:'#c9c2ff',fontWeight:750}}>
-                  {geminiLoading ? 'Loading model list…' : '🔎 Check available Gemini models'}
+                <div style={{fontSize:12,fontWeight:800}}>OpenRouter Model Test</div>
+                <div style={{fontSize:10,color:'#7f899b',marginTop:4,lineHeight:1.5}}>ဒီ Key နဲ့ ရနိုင်တဲ့ text chat models တွေကို OpenRouter ကနေ တိုက်ရိုက်ယူပြီး တစ်ခုချင်း စမ်းနိုင်ပါတယ်။</div>
+                <button onClick={discoverOpenRouterModels} disabled={openRouterLoading || !openRouterApiKey.trim()} style={{marginTop:10,width:'100%',padding:10,borderRadius:10,border:'1px solid #3b3860',background:'#17152b',color:'#c9c2ff',fontWeight:750}}>
+                  {openRouterLoading ? 'Loading model list…' : '🔎 Check available OpenRouter models'}
                 </button>
-                {geminiModels.length>0 && <div style={{marginTop:10}}>
-                  <div style={{fontSize:9,color:'#7f899b',marginBottom:5}}>AVAILABLE TEXT GENERATION MODELS · {geminiModels.length}</div>
-                  <select value={geminiSelectedModel} onChange={e=>{setGeminiSelectedModel(e.target.value);setGeminiResult(null);setGeminiError('')}} style={{width:'100%',padding:11,borderRadius:10,background:'#0c1119',color:'#fff',border:'1px solid #30384a'}}>
-                    {geminiModels.map(model=><option key={model.baseModelId} value={model.baseModelId}>{model.displayName} · {model.baseModelId}</option>)}
+                {openRouterModels.length>0 && <div style={{marginTop:10}}>
+                  <div style={{fontSize:9,color:'#7f899b',marginBottom:5}}>TEXT CHAT MODELS · {openRouterModels.length}</div>
+                  <input value={openRouterSearch} onChange={e=>setOpenRouterSearch(e.target.value)} placeholder="Model ရှာပါ… (ဥပမာ qwen, gemini, gpt)" style={{width:'100%',boxSizing:'border-box',padding:10,borderRadius:10,background:'#0c1119',color:'#fff',border:'1px solid #30384a'}} />
+                  <select value={openRouterSelectedModel} onChange={e=>{setOpenRouterSelectedModel(e.target.value);localStorage.setItem(OPENROUTER_MODEL_KEY,e.target.value);setOpenRouterResult(null);setOpenRouterError('')}} style={{width:'100%',padding:11,marginTop:7,borderRadius:10,background:'#0c1119',color:'#fff',border:'1px solid #30384a'}}>
+                    {openRouterModels.filter(model => !openRouterSearch.trim() || (model.id+' '+model.name).toLowerCase().includes(openRouterSearch.trim().toLowerCase())).slice(0,120).map(model=><option key={model.id} value={model.id}>{model.name} · {model.id}</option>)}
                   </select>
                   <div style={{fontSize:10,color:'#7f899b',marginTop:6,lineHeight:1.5}}>
-                    {geminiModels.find(m=>m.baseModelId===geminiSelectedModel)?.description || 'Model metadata loaded from Google Gemini API.'}
+                    {openRouterModels.find(m=>m.id===openRouterSelectedModel)?.description || 'Model metadata loaded from OpenRouter.'}
                   </div>
-                  <button onClick={runGeminiTest} disabled={geminiTesting} style={{marginTop:9,width:'100%',padding:10,borderRadius:10,border:0,background:'linear-gradient(135deg,#6558e8,#4f8cff)',color:'#fff',fontWeight:800}}>
-                    {geminiTesting ? 'Testing model…' : '▶ Test selected model'}
+                  <button onClick={runOpenRouterTest} disabled={openRouterTesting} style={{marginTop:9,width:'100%',padding:10,borderRadius:10,border:0,background:'linear-gradient(135deg,#6558e8,#4f8cff)',color:'#fff',fontWeight:800}}>
+                    {openRouterTesting ? 'Testing model…' : '▶ Test selected model'}
                   </button>
                 </div>}
-                {geminiResult && <div style={{marginTop:10,padding:11,borderRadius:10,background:geminiResult.ok?'#0d2119':'#29161a',border:'1px solid '+(geminiResult.ok?'#215a40':'#54242c')}}>
-                  <div style={{fontSize:11,fontWeight:800,color:geminiResult.ok?'#7ee2ad':'#ff9da7'}}>{geminiResult.ok?'✅ WORKS':'❌ FAILED'} · {geminiResult.elapsedMs} ms</div>
-                  {geminiResult.ok && <div style={{fontSize:12,color:'#d7e5dc',marginTop:7,whiteSpace:'pre-wrap'}}>Response: {geminiResult.reply}</div>}
-                  {!geminiResult.ok && <div style={{fontSize:11,color:'#ffb0b7',marginTop:7,lineHeight:1.5}}>{geminiResult.error}</div>}
+                {openRouterResult && <div style={{marginTop:10,padding:11,borderRadius:10,background:openRouterResult.ok?'#0d2119':'#29161a',border:'1px solid '+(openRouterResult.ok?'#215a40':'#54242c')}}>
+                  <div style={{fontSize:11,fontWeight:800,color:openRouterResult.ok?'#7ee2ad':'#ff9da7'}}>{openRouterResult.ok?'✅ WORKS':'❌ FAILED'} · {openRouterResult.elapsedMs} ms</div>
+                  {openRouterResult.ok && <div style={{fontSize:12,color:'#d7e5dc',marginTop:7,whiteSpace:'pre-wrap'}}>Response: {openRouterResult.reply}</div>}
+                  {!openRouterResult.ok && <div style={{fontSize:11,color:'#ffb0b7',marginTop:7,lineHeight:1.5}}>{openRouterResult.error}</div>}
                 </div>}
-                {geminiError && <div style={{marginTop:10,padding:10,borderRadius:10,background:'#29161a',border:'1px solid #54242c',color:'#ff9da7',fontSize:10,lineHeight:1.5}}>❌ {geminiError}</div>}
+                {openRouterError && <div style={{marginTop:10,padding:10,borderRadius:10,background:'#29161a',border:'1px solid #54242c',color:'#ff9da7',fontSize:10,lineHeight:1.5}}>❌ {openRouterError}</div>}
               </div>
             </div>
             <p style={{color:'#8993a6',fontSize:13,lineHeight:1.6}}>AI engine ကို ဒီဖုန်းထဲမှာပဲ ချိန်ညှိနိုင်ပါတယ်။ Model သို့မဟုတ် engine setting ပြောင်းပြီးနောက် နောက်မေးခွန်းမှာ server ကို အလိုအလျောက် restart လုပ်ပေးပါမယ်။</p>
@@ -453,7 +447,7 @@ export default function WebApp() {
           <input value={message} onChange={e=>setMessage(e.target.value)} onKeyDown={e=>{if(e.key==='Enter')send();}} placeholder="Myk ကို မေးလိုတာ ရိုက်ပါ…" style={{flex:1,minWidth:0,border:0,outline:0,background:'transparent',color:'#f5f7fb',padding:'10px 9px',fontSize:14}} />
           <button onClick={busy ? ()=>MykAI.stop() : send} style={{width:42,height:42,border:0,borderRadius:13,background:busy?'#252c3a':'linear-gradient(135deg,#7c5cff,#4f8cff)',color:'#fff',fontWeight:800,fontSize:18}}>{busy?'■':'↑'}</button>
         </div>
-        <div style={{textAlign:'center',fontSize:9,color:'#697386',marginTop:6}}>Offline · ဒီဖုန်းထဲမှာပဲ အလုပ်လုပ်ပါတယ်</div>
+        <div style={{textAlign:'center',fontSize:9,color:'#697386',marginTop:6}}>Online · OpenRouter AI</div>
       </div>}
 
       <nav style={{position:'fixed',bottom:76,left:'50%',transform:'translateX(-50%)',display:'flex',gap:4,padding:6,borderRadius:18,border:'1px solid #202837',background:'#0c1018',zIndex:9,boxShadow:'0 8px 30px rgba(0,0,0,.28)'}}>
