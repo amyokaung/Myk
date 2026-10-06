@@ -87,6 +87,20 @@ public class MykAIPlugin extends Plugin {
             throw new Exception("GGUF model is missing or invalid");
         }
 
+        ActivityManager am = (ActivityManager) getContext().getSystemService(Context.ACTIVITY_SERVICE);
+        ActivityManager.MemoryInfo memory = new ActivityManager.MemoryInfo();
+        if (am != null) am.getMemoryInfo(memory);
+
+        // Padauk Q4_K_M is about 5.3 GB. Apply the low-memory profile BEFORE
+        // building the command; the previous implementation adjusted these
+        // variables after the command was already constructed, so the server
+        // still received the old context/thread values.
+        if (memory.availMem < 6L * 1024L * 1024L * 1024L) {
+            contextSize = Math.min(contextSize, 256);
+            threads = Math.min(threads, 4);
+            Log.w(TAG, "Low-memory Padauk profile applied: context=" + contextSize + " threads=" + threads);
+        }
+
         List<String> command = new ArrayList<>();
         command.add(binary.getAbsolutePath());
         command.add("-m");
@@ -101,12 +115,11 @@ public class MykAIPlugin extends Plugin {
         command.add(String.valueOf(threads));
         command.add("-tb");
         command.add(String.valueOf(threads));
+        command.add("-b");
+        command.add("128");
         command.add("-np");
         command.add("1");
         command.add("--no-warmup");
-        // Padauk is Gemma 4. Use llama.cpp's server-level reasoning switch.
-        // Avoid chat-template-kwargs/reasoning-format here because those flags vary
-        // between llama.cpp builds and can make llama-server exit before loading.
         command.add("--jinja");
         command.add("--reasoning");
         command.add("off");
@@ -118,19 +131,6 @@ public class MykAIPlugin extends Plugin {
                 "LD_LIBRARY_PATH",
                 getContext().getApplicationInfo().nativeLibraryDir + ":/system/lib64:/system/lib"
         );
-
-        ActivityManager am = (ActivityManager) getContext().getSystemService(Context.ACTIVITY_SERVICE);
-        ActivityManager.MemoryInfo memory = new ActivityManager.MemoryInfo();
-        if (am != null) am.getMemoryInfo(memory);
-
-        // Padauk Q4_K_M is about 5.3 GB. On phones under memory pressure, keep
-        // the KV cache and CPU worker count conservative so Android is less likely
-        // to kill llama-server while the model is loading.
-        if (memory.availMem < 4L * 1024L * 1024L * 1024L) {
-            contextSize = Math.min(contextSize, 384);
-            threads = Math.min(threads, 4);
-            Log.w(TAG, "Low-memory Padauk profile: context=" + contextSize + " threads=" + threads);
-        }
 
         Log.i(TAG, "Starting llama-server model=" + model.getName()
                 + " size=" + model.length() + " freeRam=" + memory.availMem
@@ -192,9 +192,10 @@ public class MykAIPlugin extends Plugin {
         synchronized (recentLogs) {
             tail = recentLogs.toString();
         }
-        throw new Exception("AI engine startup timed out. Model="
-                + model.length() + " bytes, free RAM=" + freeRam
-                + " bytes. Last llama log: " + tail.trim());
+        throw new Exception("Padauk local AI startup timed out. Model="
+                + String.format(java.util.Locale.US, "%.2f GB", model.length() / 1073741824.0)
+                + ", free RAM=" + String.format(java.util.Locale.US, "%.2f GB", freeRam / 1073741824.0)
+                + ". The model may be too large for current phone memory. Try closing other apps or a smaller Padauk quantization. Last llama log: " + tail.trim());
     }
 
     private JSONObject chatRequest(String message, String modelName, String historyJson,
