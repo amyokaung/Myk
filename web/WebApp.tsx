@@ -20,9 +20,9 @@ const DEFAULT_SETTINGS: EngineSettings = {
   contextSize: 512,
   threads: 4,
   temperature: 0.5,
-  maxTokens: 256,
+  maxTokens: 128,
   startupTimeoutSeconds: 120,
-  responseTimeoutSeconds: 10,
+  responseTimeoutSeconds: 30,
   thinkingMode: false,
 };
 
