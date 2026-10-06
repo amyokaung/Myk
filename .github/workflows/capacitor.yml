@@ -114,6 +114,44 @@ jobs:
           print(f"Myk versionCode={version_code} versionName={version_name}")
           PY
 
+      - name: Configure stable APK signing
+        env:
+          MYK_KEYSTORE_B64: ${{ secrets.MYK_KEYSTORE_B64 }}
+          MYK_KEYSTORE_PASSWORD: ${{ secrets.MYK_KEYSTORE_PASSWORD }}
+          MYK_KEY_ALIAS: ${{ secrets.MYK_KEY_ALIAS }}
+          MYK_KEY_PASSWORD: ${{ secrets.MYK_KEY_PASSWORD }}
+        run: |
+          set -euo pipefail
+          test -n "${MYK_KEYSTORE_B64}" || { echo "MYK_KEYSTORE_B64 is missing"; exit 1; }
+          test -n "${MYK_KEYSTORE_PASSWORD}" || { echo "MYK_KEYSTORE_PASSWORD is missing"; exit 1; }
+          test -n "${MYK_KEY_ALIAS}" || { echo "MYK_KEY_ALIAS is missing"; exit 1; }
+          test -n "${MYK_KEY_PASSWORD}" || { echo "MYK_KEY_PASSWORD is missing"; exit 1; }
+          printf '%s' "${MYK_KEYSTORE_B64}" | base64 --decode > android/myk-release.keystore
+          test -s android/myk-release.keystore
+          python3 - <<'PY'
+          from pathlib import Path
+          p = Path("android/app/build.gradle")
+          s = p.read_text()
+          marker = "android {"
+          if "mykStable" not in s:
+              block = """android {
+                  signingConfigs {
+                      mykStable {
+                          storeFile file("../myk-release.keystore")
+                          storePassword System.getenv("MYK_KEYSTORE_PASSWORD")
+                          keyAlias System.getenv("MYK_KEY_ALIAS")
+                          keyPassword System.getenv("MYK_KEY_PASSWORD")
+                      }
+                  }"""
+              if marker not in s:
+                  raise SystemExit("android block not found")
+              s = s.replace(marker, block, 1)
+          s = s.replace("signingConfig signingConfigs.debug", "signingConfig signingConfigs.mykStable")
+          p.write_text(s)
+          PY
+          keytool -list -keystore android/myk-release.keystore -storepass "${MYK_KEYSTORE_PASSWORD}" -alias "${MYK_KEY_ALIAS}" -noprompt >/dev/null
+          echo "Stable signing keystore validated."
+
       - name: Force native library extraction
         run: |
           python3 - <<'PY'
@@ -154,6 +192,10 @@ jobs:
 
       - name: Build Capacitor debug APK
         working-directory: android
+        env:
+          MYK_KEYSTORE_PASSWORD: ${{ secrets.MYK_KEYSTORE_PASSWORD }}
+          MYK_KEY_ALIAS: ${{ secrets.MYK_KEY_ALIAS }}
+          MYK_KEY_PASSWORD: ${{ secrets.MYK_KEY_PASSWORD }}
         run: ./gradlew assembleDebug --no-daemon
 
       - name: Verify APK and llama-server packaging
