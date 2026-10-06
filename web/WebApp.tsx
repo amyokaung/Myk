@@ -40,7 +40,7 @@ interface MykModelDownloadPlugin {
 
 const MykModelDownload = registerPlugin<MykModelDownloadPlugin>('MykModel');
 
-type Tab = 'chat' | 'learn' | 'models' | 'settings';
+type Tab = 'home' | 'chat' | 'learn' | 'models' | 'settings';
 const SETTINGS_KEY = 'myk-engine-settings';
 const OPENROUTER_KEY = 'myk-openrouter-api-key';
 const OPENROUTER_MODEL_KEY = 'myk-openrouter-model';
@@ -48,7 +48,7 @@ const OPENROUTER_TESTED_KEY = 'myk-openrouter-tested-models';
 const CHAT_MODE_KEY = 'myk-chat-mode';
 
 export default function WebApp() {
-  const [tab, setTab] = useState<Tab>('chat');
+  const [tab, setTab] = useState<Tab>('home');
   const [message, setMessage] = useState('');
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [modelName, setModelName] = useState('No GGUF model selected');
@@ -352,19 +352,59 @@ export default function WebApp() {
           <div><div style={{fontSize:17,fontWeight:800}}>Myk</div><div style={{fontSize:10,color:'#8993a6'}}>Myanmar Offline AI</div></div>
         </div>
         <div style={{display:'flex',gap:7}}>
-          {messages.length > 0 && <button onClick={clearChat} disabled={busy} aria-label="Clear chat" style={{width:38,height:38,borderRadius:11,border:'1px solid #252c3a',background:'#111620',color:'#b9c2d3'}}>⌫</button>}
-          <button onClick={newChat} aria-label="New chat" style={{width:38,height:38,borderRadius:11,border:'1px solid #252c3a',background:'#111620',color:'#b9c2d3'}}>＋</button>
-          <button onClick={()=>setTab('settings')} aria-label="Settings" style={{width:38,height:38,borderRadius:11,border:'1px solid #252c3a',background:'#111620',color:'#b9c2d3'}}>⚙</button>
+          {tab !== 'home' && <button onClick={()=>{if(busy) MykAI.stop().catch(()=>{}); setBusy(false); setTab('home');}} aria-label="Back to menu" style={{width:38,height:38,borderRadius:11,border:'1px solid #252c3a',background:'#111620',color:'#b9c2d3'}}>←</button>}
+          {tab === 'chat' && messages.length > 0 && <button onClick={clearChat} disabled={busy} aria-label="Clear chat" style={{width:38,height:38,borderRadius:11,border:'1px solid #252c3a',background:'#111620',color:'#b9c2d3'}}>⌫</button>}
+          {tab === 'chat' && <button onClick={newChat} aria-label="New chat" style={{width:38,height:38,borderRadius:11,border:'1px solid #252c3a',background:'#111620',color:'#b9c2d3'}}>＋</button>}
+          <button onClick={()=>setTab('home')} aria-label="Menu" style={{width:38,height:38,borderRadius:11,border:'1px solid #252c3a',background:'#111620',color:'#b9c2d3'}}>☰</button>
         </div>
       </header>
 
       <style>{'@keyframes mykBrainPulse{0%,100%{opacity:.38;transform:scale(.88);filter:brightness(.65)}50%{opacity:1;transform:scale(1.08);filter:brightness(1.45)}}'}</style>
       <main style={{maxWidth:920,margin:'0 auto',minHeight:'calc(100vh - 64px)'}}>
+        {tab === 'home' && (
+          <section style={{padding:'24px 15px 110px'}}>
+            <div style={{textAlign:'center',padding:'28px 8px 22px'}}>
+              <div style={{width:72,height:72,borderRadius:23,display:'grid',placeItems:'center',margin:'0 auto',background:'linear-gradient(135deg,#7c5cff,#4f8cff)',fontSize:34,fontWeight:900}}>M</div>
+              <div style={{fontSize:28,fontWeight:850,marginTop:14}}>Myk</div>
+              <div style={{fontSize:12,color:'#818ca0',marginTop:4}}>Myanmar AI</div>
+            </div>
+
+            <div style={{fontSize:10,color:'#707b8e',fontWeight:850,letterSpacing:1.4,margin:'8px 4px'}}>AI</div>
+            <div style={{display:'grid',gap:10}}>
+              <button onClick={()=>{setChatMode('padauk');localStorage.setItem(CHAT_MODE_KEY,'padauk');setMessages([]);setTab('chat')}} style={{textAlign:'left',padding:18,borderRadius:18,border:'1px solid #302b58',background:'linear-gradient(145deg,#15132b,#10151f)',color:'#fff'}}>
+                <div style={{fontSize:19,fontWeight:850}}>🎓 Local AI · Padauk</div>
+                <div style={{fontSize:11,color:'#8e98aa',marginTop:6}}>ဖုန်းထဲက GGUF model · Internet မလို</div>
+              </button>
+              <button onClick={()=>{setChatMode('teacher');localStorage.setItem(CHAT_MODE_KEY,'teacher');setMessages([]);setTab('chat')}} style={{textAlign:'left',padding:18,borderRadius:18,border:'1px solid #29364d',background:'linear-gradient(145deg,#111b2b,#10151f)',color:'#fff'}}>
+                <div style={{fontSize:19,fontWeight:850}}>👨‍🏫 Online AI · Gemini / GPT</div>
+                <div style={{fontSize:11,color:'#8e98aa',marginTop:6}}>OpenRouter · Gemini / ChatGPT models</div>
+              </button>
+            </div>
+
+            <div style={{fontSize:10,color:'#707b8e',fontWeight:850,letterSpacing:1.4,margin:'22px 4px 8px'}}>LEARNING</div>
+            <button onClick={()=>setTab('learn')} style={{width:'100%',textAlign:'left',padding:16,borderRadius:16,border:'1px solid #252d3b',background:'#10151f',color:'#fff'}}>
+              <div style={{fontSize:16,fontWeight:800}}>📚 Learn · Teach Padauk</div>
+              <div style={{fontSize:11,color:'#8e98aa',marginTop:5}}>Gemini / GPT က ဆရာ၊ Padauk က တပည့်</div>
+            </button>
+
+            <div style={{fontSize:10,color:'#707b8e',fontWeight:850,letterSpacing:1.4,margin:'22px 4px 8px'}}>TOOLS</div>
+            <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:10}}>
+              <button onClick={()=>setTab('models')} style={{padding:15,borderRadius:16,border:'1px solid #252d3b',background:'#10151f',color:'#fff',textAlign:'left'}}>
+                <div style={{fontSize:15,fontWeight:800}}>◈ Models</div><div style={{fontSize:10,color:'#8e98aa',marginTop:5}}>GGUF စီမံ</div>
+              </button>
+              <button onClick={()=>setTab('settings')} style={{padding:15,borderRadius:16,border:'1px solid #252d3b',background:'#10151f',color:'#fff',textAlign:'left'}}>
+                <div style={{fontSize:15,fontWeight:800}}>⚙ Settings</div><div style={{fontSize:10,color:'#8e98aa',marginTop:5}}>API / Engine</div>
+              </button>
+            </div>
+          </section>
+        )}
+
         {tab === 'chat' && (
           <section style={{padding:'18px 15px 145px'}}>
-            <div style={{display:'flex',gap:7,marginBottom:10}}>
-              <button onClick={()=>{setChatMode('padauk');localStorage.setItem(CHAT_MODE_KEY,'padauk')}} style={{flex:1,padding:10,borderRadius:12,border:'1px solid '+(chatMode==='padauk'?'#6658e8':'#252d3b'),background:chatMode==='padauk'?'#1a1835':'#10151f',color:'#fff',fontWeight:750}}>🎓 Padauk Student</button>
-              <button onClick={()=>{setChatMode('teacher');localStorage.setItem(CHAT_MODE_KEY,'teacher')}} style={{flex:1,padding:10,borderRadius:12,border:'1px solid '+(chatMode==='teacher'?'#6658e8':'#252d3b'),background:chatMode==='teacher'?'#1a1835':'#10151f',color:'#fff',fontWeight:750}}>👨‍🏫 Gemini / GPT</button>
+            <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:14}}>
+              <div><div style={{fontSize:18,fontWeight:850}}>{chatMode === 'padauk' ? '🎓 Local AI · Padauk' : '👨‍🏫 Online AI · Gemini / GPT'}</div>
+              <div style={{fontSize:10,color:'#778296',marginTop:3}}>{chatMode === 'padauk' ? 'Offline GGUF engine' : 'OpenRouter API'}</div></div>
+              <button onClick={()=>setTab('home')} style={{padding:'8px 11px',borderRadius:10,border:'1px solid #283243',background:'#111620',color:'#aeb8c8',fontSize:11}}>Menu</button>
             </div>
             {messages.length === 0 ? (
               <div style={{minHeight:'62vh',display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',textAlign:'center'}}>
@@ -510,9 +550,8 @@ export default function WebApp() {
         <div style={{textAlign:'center',fontSize:9,color:'#697386',marginTop:6}}>{chatMode === 'padauk' ? 'Offline · Padauk Student' : 'Online · Gemini / ChatGPT Teacher'}</div>
       </div>}
 
-      <nav style={{position:'fixed',bottom:76,left:'50%',transform:'translateX(-50%)',display:'flex',gap:4,padding:6,borderRadius:18,border:'1px solid #202837',background:'#0c1018',zIndex:9,boxShadow:'0 8px 30px rgba(0,0,0,.28)'}}>
-        {(['chat','learn','models','settings'] as Tab[]).map(item=><button key={item} onClick={()=>setTab(item)} style={{padding:'8px 12px',border:0,borderRadius:12,background:tab===item?'#1a2030':'transparent',color:tab===item?'#f5f7fb':'#7f899b',fontSize:12}}>{item==='chat'?'⌁ Chat':item==='learn'?'✦ Learn':item==='models'?'◈ Models':'⚙ Settings'}</button>)}
-      </nav>
+      {tab !== 'home' && <button onClick={()=>setTab('home')} style={{position:'fixed',right:14,bottom:92,zIndex:9,padding:'9px 13px',borderRadius:13,border:'1px solid #2a3342',background:'#0c1018',color:'#aeb8c8',fontSize:11}}>☰ Menu</button>}
+
     </div>
   );
 }
