@@ -95,9 +95,19 @@ public class MykAIPlugin extends Plugin {
         // building the command; the previous implementation adjusted these
         // variables after the command was already constructed, so the server
         // still received the old context/thread values.
-        if (memory.availMem < 6L * 1024L * 1024L * 1024L) {
+        long modelBytes = model.length();
+        long safetyBytes = 900L * 1024L * 1024L;
+        if (memory.availMem < modelBytes + safetyBytes) {
+            throw new Exception("Padauk needs more free RAM to start. Model="
+                    + String.format(java.util.Locale.US, "%.2f GB", modelBytes / 1073741824.0)
+                    + ", available RAM="
+                    + String.format(java.util.Locale.US, "%.2f GB", memory.availMem / 1073741824.0)
+                    + ". This phone cannot safely load this Padauk quantization. Use the smaller Padauk IQ1_S/IQ2 quantization from Models, or close other apps and retry.");
+        }
+
+        if (memory.availMem < 7L * 1024L * 1024L * 1024L) {
             contextSize = Math.min(contextSize, 256);
-            threads = Math.min(threads, 4);
+            threads = Math.min(threads, 2);
             Log.w(TAG, "Low-memory Padauk profile applied: context=" + contextSize + " threads=" + threads);
         }
 
@@ -116,13 +126,17 @@ public class MykAIPlugin extends Plugin {
         command.add("-tb");
         command.add(String.valueOf(threads));
         command.add("-b");
-        command.add("128");
+        command.add("32");
+        command.add("-ub");
+        command.add("32");
         command.add("-np");
         command.add("1");
         command.add("--no-warmup");
         command.add("--jinja");
         command.add("--reasoning");
         command.add("off");
+        command.add("--reasoning-format");
+        command.add("none");
 
         ProcessBuilder builder = new ProcessBuilder(command);
         builder.redirectErrorStream(true);
@@ -174,8 +188,8 @@ public class MykAIPlugin extends Plugin {
                 synchronized (recentLogs) {
                     tail = recentLogs.toString().trim();
                 }
-                throw new Exception("llama-server exited during startup"
-                        + (tail.isEmpty() ? "" : ". Last llama log: " + tail));
+                throw new Exception("Padauk llama-server exited during startup."
+                        + (tail.isEmpty() ? " No native log was captured." : " Last llama log: " + tail));
             }
             if (serverModelLoaded || healthy()) return System.currentTimeMillis() - startMs;
             Thread.sleep(750);
