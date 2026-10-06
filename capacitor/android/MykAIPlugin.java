@@ -96,24 +96,25 @@ public class MykAIPlugin extends Plugin {
         // variables after the command was already constructed, so the server
         // still received the old context/thread values.
         long modelBytes = model.length();
-        long safetyBytes = 512L * 1024L * 1024L;
-        if (memory.availMem < modelBytes + safetyBytes) {
-            throw new Exception("Padauk needs more free RAM to start. Model="
-                    + String.format(java.util.Locale.US, "%.2f GB", modelBytes / 1073741824.0)
-                    + ", available RAM="
-                    + String.format(java.util.Locale.US, "%.2f GB", memory.availMem / 1073741824.0)
-                    + ". This phone cannot safely load this Padauk quantization. Use the smaller Padauk IQ1_S/IQ2 quantization from Models, or close other apps and retry.");
+        long totalRam = memory.totalMem;
+        long freeRam = memory.availMem;
+
+        // GGUF is mmap-backed on llama.cpp: file size is not the same as resident RAM.
+        // On 8GB-class phones use a small context/batch/KV cache instead of rejecting
+        // a Padauk IQ quant solely because free RAM is below the file size.
+        if (totalRam < 7L * 1024L * 1024L * 1024L || freeRam < 2L * 1024L * 1024L * 1024L) {
+            throw new Exception("Padauk local AI needs an 8GB-class phone with at least 2GB free RAM. " +
+                    "This device currently has " +
+                    String.format(java.util.Locale.US, "%.2f GB total / %.2f GB free RAM.",
+                            totalRam / 1073741824.0, freeRam / 1073741824.0) +
+                    " Close background apps and use Padauk IQ1_S, or use Online AI.");
         }
 
-        if (memory.availMem < 6L * 1024L * 1024L * 1024L) {
-            contextSize = Math.min(contextSize, 384);
-            threads = Math.min(threads, 4);
-            Log.w(TAG, "Low-memory Padauk profile applied: context=" + contextSize + " threads=" + threads);
-        }
-        if (modelBytes <= 4L * 1024L * 1024L * 1024L) {
-            contextSize = Math.min(contextSize, 512);
-            threads = Math.min(threads, 4);
-        }
+        contextSize = Math.min(contextSize, 256);
+        threads = Math.min(threads, 4);
+        Log.w(TAG, "Padauk mobile-low-memory profile: context=" + contextSize
+                + " threads=" + threads + " modelBytes=" + modelBytes
+                + " totalRam=" + totalRam + " freeRam=" + freeRam);
 
         List<String> command = new ArrayList<>();
         command.add(binary.getAbsolutePath());
@@ -130,9 +131,9 @@ public class MykAIPlugin extends Plugin {
         command.add("-tb");
         command.add(String.valueOf(threads));
         command.add("-b");
-        command.add("32");
+        command.add("16");
         command.add("-ub");
-        command.add("32");
+        command.add("16");
         command.add("-np");
         command.add("1");
         command.add("--no-warmup");
@@ -142,9 +143,9 @@ public class MykAIPlugin extends Plugin {
         command.add("--reasoning-format");
         command.add("none");
         command.add("--cache-type-k");
-        command.add("q8_0");
+        command.add("q4_0");
         command.add("--cache-type-v");
-        command.add("q8_0");
+        command.add("q4_0");
 
         ProcessBuilder builder = new ProcessBuilder(command);
         builder.redirectErrorStream(true);
