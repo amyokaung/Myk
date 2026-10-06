@@ -104,15 +104,12 @@ public class MykAIPlugin extends Plugin {
         command.add("-np");
         command.add("1");
         command.add("--no-warmup");
-        // Padauk is Gemma 4. Keep Jinja enabled and disable thinking through the
-        // template variable; this is the reliable Gemma-4 path for llama-server.
+        // Padauk is Gemma 4. Use llama.cpp's server-level reasoning switch.
+        // Avoid chat-template-kwargs/reasoning-format here because those flags vary
+        // between llama.cpp builds and can make llama-server exit before loading.
         command.add("--jinja");
         command.add("--reasoning");
-        command.add("auto");
-        command.add("--reasoning-format");
-        command.add("none");
-        command.add("--chat-template-kwargs");
-        command.add("{\"enable_thinking\":false}");
+        command.add("off");
 
         ProcessBuilder builder = new ProcessBuilder(command);
         builder.redirectErrorStream(true);
@@ -173,7 +170,12 @@ public class MykAIPlugin extends Plugin {
         long deadline = System.currentTimeMillis() + startupTimeoutSeconds * 1000L;
         while (System.currentTimeMillis() < deadline) {
             if (process == null || !process.isAlive()) {
-                throw new Exception("llama-server exited during startup");
+                String tail;
+                synchronized (recentLogs) {
+                    tail = recentLogs.toString().trim();
+                }
+                throw new Exception("llama-server exited during startup"
+                        + (tail.isEmpty() ? "" : ". Last llama log: " + tail));
             }
             if (serverModelLoaded || healthy()) return System.currentTimeMillis() - startMs;
             Thread.sleep(750);
