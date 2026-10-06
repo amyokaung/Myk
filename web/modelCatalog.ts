@@ -15,10 +15,10 @@ export const MODEL_CATALOG: DownloadableModel[] = [
     name: 'AI4Burmese Padauk i1-IQ2_S · Phone',
     filename: 'ai4burmese-padauk.i1-IQ2_S.gguf',
     url: 'https://huggingface.co/mradermacher/ai4burmese-padauk-i1-GGUF/resolve/main/ai4burmese-padauk.i1-IQ2_S.gguf',
-    sizeBytes: 3680000000,
+    sizeBytes: 3290000000,
     recommended: true,
-    description: 'Smaller Padauk quant for phones; less memory than Q4_K_M.',
-    tags: ['Padauk', 'Burmese', 'Gemma 4', 'Phone', '3.7GB'],
+    description: 'Smallest Padauk quant. Still requires an 8GB-class phone; use this before larger Padauk quants.',
+    tags: ['Padauk', 'Burmese', 'Gemma 4', 'IQ1_S', '3.3GB'],
   },
 
   {
