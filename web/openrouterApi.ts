@@ -18,6 +18,18 @@ export interface OpenRouterTestResult {
   error?: string;
 }
 
+export function isGeminiOrChatGPTModel(model: OpenRouterModel): boolean {
+  const id = model.id.toLowerCase();
+  return id.startsWith('google/gemini') || id.startsWith('openai/gpt');
+}
+
+export function filterTeacherModels(models: OpenRouterModel[]): OpenRouterModel[] {
+  return models
+    .filter(isGeminiOrChatGPTModel)
+    .filter(m => !m.id.includes(':batch'))
+    .filter(m => !m.id.includes('image'));
+}
+
 const API_ROOT = 'https://openrouter.ai/api/v1';
 
 function cleanKey(apiKey: string) {
