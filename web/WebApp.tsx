@@ -322,7 +322,7 @@ export default function WebApp() {
       setMessages(current => [...current, {role: 'assistant', text: reply + `\n\n⏱️ ${Math.round(elapsedMs / 1000)}s · ${tab === 'localChat' ? 'Padauk' : selectedModel}`}]);
     } catch (error) {
       const text = error instanceof Error ? error.message : String(error);
-      setMessages(current => [...current, {role: 'assistant', text: '❌ ' + text}]);
+      setMessages(current => [...current, {role: 'assistant', text: '❌ Local AI Error: ' + text}]);
     } finally {
       setBusy(false);
     }
