@@ -295,9 +295,9 @@ export default function WebApp() {
           contextSize: settings.contextSize,
           threads: settings.threads,
           temperature: settings.temperature,
-          maxTokens: Math.min(64, settings.maxTokens),
+          maxTokens: Math.min(48, Math.max(24, settings.maxTokens)),
           startupTimeoutSeconds: settings.startupTimeoutSeconds,
-          responseTimeoutSeconds: Math.max(45, settings.responseTimeoutSeconds),
+          responseTimeoutSeconds: Math.max(90, settings.responseTimeoutSeconds),
           thinkingMode: false,
           learnedContext,
         });
