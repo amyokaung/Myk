@@ -69,7 +69,7 @@ public class MykAIPlugin extends Plugin {
         long startMs = System.currentTimeMillis();
         contextSize = Math.max(256, Math.min(8192, contextSize));
         threads = Math.max(1, Math.min(8, threads));
-        startupTimeoutSeconds = Math.max(60, Math.min(900, startupTimeoutSeconds));
+        startupTimeoutSeconds = Math.max(120, Math.min(900, startupTimeoutSeconds));
 
         String requestedPath = model.getAbsolutePath();
         if (process != null && process.isAlive()
@@ -110,8 +110,8 @@ public class MykAIPlugin extends Plugin {
                     " Close background apps and use Padauk IQ1_S, or use Online AI.");
         }
 
-        contextSize = Math.min(contextSize, 256);
-        threads = Math.min(threads, 4);
+        contextSize = Math.min(contextSize, 128);
+        threads = Math.min(threads, 2);
         Log.w(TAG, "Padauk mobile-low-memory profile: context=" + contextSize
                 + " threads=" + threads + " modelBytes=" + modelBytes
                 + " totalRam=" + totalRam + " freeRam=" + freeRam);
@@ -131,9 +131,9 @@ public class MykAIPlugin extends Plugin {
         command.add("-tb");
         command.add(String.valueOf(threads));
         command.add("-b");
-        command.add("16");
-        command.add("-ub");
         command.add("8");
+        command.add("-ub");
+        command.add("4");
         command.add("-np");
         command.add("1");
         command.add("--no-warmup");
@@ -284,7 +284,7 @@ public class MykAIPlugin extends Plugin {
                 new URL("http://127.0.0.1:" + PORT + "/v1/chat/completions").openConnection();
         c.setRequestMethod("POST");
         c.setConnectTimeout(3000);
-        c.setReadTimeout(Math.max(5, Math.min(60, responseTimeoutSeconds)) * 1000);
+        c.setReadTimeout(Math.max(15, Math.min(180, responseTimeoutSeconds)) * 1000);
         c.setDoOutput(true);
         c.setRequestProperty("Content-Type", "application/json");
 
@@ -353,8 +353,8 @@ public class MykAIPlugin extends Plugin {
         int threads = call.getInt("threads", 8);
         double temperature = call.getDouble("temperature", 0.7);
         int maxTokens = call.getInt("maxTokens", 128);
-        int startupTimeoutSeconds = call.getInt("startupTimeoutSeconds", 180);
-        int responseTimeoutSeconds = call.getInt("responseTimeoutSeconds", 45);
+        int startupTimeoutSeconds = call.getInt("startupTimeoutSeconds", 300);
+        int responseTimeoutSeconds = call.getInt("responseTimeoutSeconds", 120);
         boolean thinkingMode = call.getBoolean("thinkingMode", false);
         String learnedContext = call.getString("learnedContext", "");
 
