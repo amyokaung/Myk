@@ -58,7 +58,7 @@ jobs:
           path: |
             cpp/llama.cpp
             cpp/llama-build
-          key: myk-llama-arm64-gemma4-v2-${{ runner.os }}-${{ hashFiles('.github/workflows/capacitor.yml') }}
+          key: myk-llama-arm64-iq2s-v3-${{ runner.os }}-${{ hashFiles('.github/workflows/capacitor.yml') }}
 
       - name: Build llama-server for Android arm64
         shell: bash
@@ -66,7 +66,7 @@ jobs:
           set -euxo pipefail
 
           if [ ! -d cpp/llama.cpp/.git ]; then
-            git clone --depth 1 https://github.com/ggml-org/llama.cpp.git cpp/llama.cpp
+            git clone --depth 1 --branch master https://github.com/ggml-org/llama.cpp.git cpp/llama.cpp
           fi
 
           if [ -x cpp/llama-build/bin/llama-server ]; then
@@ -77,6 +77,8 @@ jobs:
             cmake --build cpp/llama-build --config Release --target llama-server -j2
           fi
 
+          echo "llama.cpp commit: $(git -C cpp/llama.cpp rev-parse HEAD)"
+          echo "llama.cpp date: $(git -C cpp/llama.cpp log -1 --format=%ci)"
           test -x cpp/llama-build/bin/llama-server
           mkdir -p android/app/src/main/jniLibs/arm64-v8a
           cp cpp/llama-build/bin/llama-server android/app/src/main/jniLibs/arm64-v8a/libllamaserver.so
