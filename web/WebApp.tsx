@@ -266,7 +266,7 @@ export default function WebApp() {
       return;
     }
 
-    const history = messages.slice(-6).map(item => ({
+    const history = messages.slice(-2).map(item => ({
       role: item.role,
       content: item.text.replace(/\n\n⏱️.*$/s, ''),
     }));
@@ -284,7 +284,7 @@ export default function WebApp() {
           .slice(0, 40)
           .map(item => 'Q: ' + item.question + '\nA: ' + item.idealAnswer)
           .join('\n\n')
-          .slice(0, 7000);
+           .slice(0, 2500);
         if (modelName === 'No GGUF model selected' || !modelName.toLowerCase().includes('padauk')) {
           throw new Error('Padauk GGUF ကို Models မှာ Active လုပ်ပါ။');
         }
@@ -295,7 +295,7 @@ export default function WebApp() {
           contextSize: settings.contextSize,
           threads: settings.threads,
           temperature: settings.temperature,
-          maxTokens: settings.maxTokens,
+          maxTokens: Math.min(64, settings.maxTokens),
           startupTimeoutSeconds: settings.startupTimeoutSeconds,
           responseTimeoutSeconds: Math.max(20, settings.responseTimeoutSeconds),
           thinkingMode: false,
