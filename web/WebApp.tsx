@@ -297,7 +297,7 @@ export default function WebApp() {
           temperature: settings.temperature,
           maxTokens: Math.min(64, settings.maxTokens),
           startupTimeoutSeconds: settings.startupTimeoutSeconds,
-          responseTimeoutSeconds: Math.max(20, settings.responseTimeoutSeconds),
+          responseTimeoutSeconds: Math.max(45, settings.responseTimeoutSeconds),
           thinkingMode: false,
           learnedContext,
         });
@@ -312,7 +312,7 @@ export default function WebApp() {
           model: selectedModel,
           message: value,
           history,
-          maxTokens: settings.maxTokens,
+          maxTokens: Math.min(96, Math.max(32, settings.maxTokens)),
           temperature: settings.temperature,
         });
         reply = (result.reply || '').trim();
