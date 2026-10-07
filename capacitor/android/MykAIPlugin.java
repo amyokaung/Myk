@@ -149,9 +149,9 @@ public class MykAIPlugin extends Plugin {
         command.add("-tb");
         command.add(String.valueOf(threads));
         command.add("-b");
-        command.add("32");
+        command.add("128");
         command.add("-ub");
-        command.add("16");
+        command.add("32");
         command.add("-np");
         command.add("1");
         command.add("--no-warmup");
