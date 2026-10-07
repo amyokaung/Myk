@@ -69,6 +69,7 @@ export default function WebApp() {
   const [downloadBytes, setDownloadBytes] = useState(0);
   const [downloadTotal, setDownloadTotal] = useState(0);
   const [downloadError, setDownloadError] = useState('');
+  const [verifyingModel, setVerifyingModel] = useState(false);
   const [settings, setSettings] = useState<EngineSettings>(() => {
     try {
       const saved = localStorage.getItem(SETTINGS_KEY);
@@ -216,6 +217,34 @@ export default function WebApp() {
     }
   };
 
+  const verifyActiveModel = async () => {
+    if (modelName === 'No GGUF model selected') {
+      alert('GGUF model မရွေးရသေးပါ။');
+      return;
+    }
+    setVerifyingModel(true);
+    try {
+      const result = await MykAI.verifyModel({modelName});
+      const size = result.sizeGB + ' GB';
+      alert(
+        'GGUF Integrity Check\n\n' +
+        'File: ' + result.name + '\n' +
+        'Size: ' + size + '\n' +
+        'Magic: ' + result.magic + '\n' +
+        'GGUF version: ' + result.version + '\n' +
+        'SHA-256:\n' + result.sha256 + '\n\n' +
+        (result.basicValid
+          ? '✅ Basic GGUF header/file read check passed.\n\n' +
+            'SHA-256 ကို source file ရဲ့ checksum နဲ့ နှိုင်းယှဉ်ပါ။'
+          : '❌ Basic integrity check failed.')
+      );
+    } catch (error) {
+      const text = error instanceof Error ? error.message : String(error);
+      alert('❌ GGUF verification failed\n\n' + text);
+    } finally {
+      setVerifyingModel(false);
+    }
+  };
   const pickModel = async () => {
     setBusy(true);
     try {
@@ -460,6 +489,16 @@ export default function WebApp() {
               <div style={{fontSize:10,color:'#7f899b'}}>ACTIVE MODEL</div>
               <div style={{fontSize:14,fontWeight:700,marginTop:7,wordBreak:'break-word'}}>{modelName}</div>
               <div style={{fontSize:11,color:'#7f899b',marginTop:6}}>{models.length} local model{models.length===1?'':'s'}</div>
+              <button
+                onClick={verifyActiveModel}
+                disabled={verifyingModel}
+                style={{marginTop:11,width:'100%',padding:10,borderRadius:10,border:'1px solid #3b3860',background:'#17152b',color:'#c9c2ff',fontWeight:750}}
+              >
+                {verifyingModel ? '⏳ Checking GGUF file…' : '🔐 Verify GGUF · SHA-256'}
+              </button>
+              <div style={{fontSize:9,color:'#697386',marginTop:7,lineHeight:1.5}}>
+                File size / GGUF header / SHA-256 ကိုစစ်ပြီး model file ပျက်/မပြည့်တာကို ခွဲခြားနိုင်ပါတယ်။
+              </div>
             </div>
             {models.map(model=><button key={model.name} onClick={()=>setModelName(model.name)} style={{display:'block',width:'100%',textAlign:'left',marginTop:10,padding:14,borderRadius:15,background:'#0c1119',border:model.name===modelName?'1px solid #6658e8':'1px solid #202837',color:'#f5f7fb'}}><div style={{fontSize:13,fontWeight:650,wordBreak:'break-word'}}>{model.name}</div><div style={{fontSize:11,color:'#7f899b',marginTop:5}}>{(model.size/1024/1024).toFixed(1)} MB {model.name===modelName?'· Active · Tap to select':''}</div></button>)}
             <div style={{marginTop:20,fontSize:16,fontWeight:800}}>Recommended downloads</div>
