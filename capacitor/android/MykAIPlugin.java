@@ -113,8 +113,11 @@ public class MykAIPlugin extends Plugin {
         // Use the same Gemma4 mobile profile that previously stabilized Padauk,
         // but keep it bounded for this phone: enough CPU workers for generation
         // without reopening the old high-memory profile.
-        contextSize = Math.min(contextSize, 384);
-        threads = Math.min(threads, 4);
+        // Padauk IQ1_S is still a 7B Gemma4 model. Keep the Android working set small.
+        // mmap + lazy loading lets the OS page weights in/out instead of making the
+        // whole GGUF resident.
+        contextSize = Math.min(contextSize, 256);
+        threads = Math.min(threads, 2);
         Log.w(TAG, "Padauk mobile-low-memory profile: context=" + contextSize
                 + " threads=" + threads + " modelBytes=" + modelBytes
                 + " totalRam=" + totalRam + " freeRam=" + freeRam);
@@ -134,12 +137,18 @@ public class MykAIPlugin extends Plugin {
         command.add("-tb");
         command.add(String.valueOf(threads));
         command.add("-b");
-        command.add("16");
-        command.add("-ub");
         command.add("8");
+        command.add("-ub");
+        command.add("4");
         command.add("-np");
         command.add("1");
         command.add("--no-warmup");
+        command.add("--load-mode");
+        command.add("mmap");
+        command.add("--lazy-mode");
+        command.add("on");
+        command.add("--cache-ram");
+        command.add("64");
         command.add("--jinja");
         command.add("--reasoning");
         command.add("off");
@@ -217,7 +226,7 @@ public class MykAIPlugin extends Plugin {
         synchronized (recentLogs) {
             tail = recentLogs.toString();
         }
-        throw new Exception("Padauk local AI startup timed out. Model="
+        throw new Exception("Padauk STARTUP timeout. Model="
                 + String.format(java.util.Locale.US, "%.2f GB", model.length() / 1073741824.0)
                 + ", free RAM=" + String.format(java.util.Locale.US, "%.2f GB", currentFreeRam / 1073741824.0)
                 + ". The model may be too large for current phone memory. Try closing other apps or a smaller Padauk quantization. Last llama log: " + tail.trim());
@@ -287,7 +296,7 @@ public class MykAIPlugin extends Plugin {
                 new URL("http://127.0.0.1:" + PORT + "/v1/chat/completions").openConnection();
         c.setRequestMethod("POST");
         c.setConnectTimeout(3000);
-        c.setReadTimeout(Math.max(45, Math.min(180, responseTimeoutSeconds)) * 1000);
+        c.setReadTimeout(Math.max(90, Math.min(180, responseTimeoutSeconds)) * 1000);
         c.setDoOutput(true);
         c.setRequestProperty("Content-Type", "application/json");
 
