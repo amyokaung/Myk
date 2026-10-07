@@ -110,8 +110,11 @@ public class MykAIPlugin extends Plugin {
                     " Close background apps and use Padauk IQ1_S, or use Online AI.");
         }
 
-        contextSize = Math.min(contextSize, 128);
-        threads = Math.min(threads, 2);
+        // Use the same Gemma4 mobile profile that previously stabilized Padauk,
+        // but keep it bounded for this phone: enough CPU workers for generation
+        // without reopening the old high-memory profile.
+        contextSize = Math.min(contextSize, 384);
+        threads = Math.min(threads, 4);
         Log.w(TAG, "Padauk mobile-low-memory profile: context=" + contextSize
                 + " threads=" + threads + " modelBytes=" + modelBytes
                 + " totalRam=" + totalRam + " freeRam=" + freeRam);
@@ -131,17 +134,21 @@ public class MykAIPlugin extends Plugin {
         command.add("-tb");
         command.add(String.valueOf(threads));
         command.add("-b");
-        command.add("8");
+        command.add("16");
         command.add("-ub");
-        command.add("4");
+        command.add("8");
         command.add("-np");
         command.add("1");
         command.add("--no-warmup");
         command.add("--jinja");
         command.add("--reasoning");
-        command.add("off");
+        command.add("auto");
         command.add("--reasoning-format");
         command.add("none");
+        // Gemma 4's chat template uses this switch to disable its internal
+        // thinking while retaining the normal assistant answer path.
+        command.add("--chat-template-kwargs");
+        command.add("{\"enable_thinking\":false}");
         command.add("--cache-type-k");
         command.add("q4_0");
         command.add("--cache-type-v");
@@ -352,7 +359,7 @@ public class MykAIPlugin extends Plugin {
         int contextSize = call.getInt("contextSize", 1024);
         int threads = call.getInt("threads", 8);
         double temperature = call.getDouble("temperature", 0.7);
-        int maxTokens = call.getInt("maxTokens", 128);
+        int maxTokens = call.getInt("maxTokens", 64);
         int startupTimeoutSeconds = call.getInt("startupTimeoutSeconds", 300);
         int responseTimeoutSeconds = call.getInt("responseTimeoutSeconds", 120);
         boolean thinkingMode = call.getBoolean("thinkingMode", false);
