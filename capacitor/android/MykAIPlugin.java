@@ -17,6 +17,8 @@ import java.io.OutputStream;
 import java.net.HttpURLConnection;
 import java.net.URL;
 import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
+import java.io.FileInputStream;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -53,6 +55,58 @@ public class MykAIPlugin extends Plugin {
 
     private boolean healthy() {
         return healthStatus().equals("HTTP 200");
+    }
+
+    private JSONObject verifyModelFile(File model) throws Exception {
+        if (!model.exists()) throw new Exception("GGUF model file not found");
+        long size = model.length();
+        if (size < 1024) throw new Exception("GGUF model file is too small or empty");
+
+        byte[] header = new byte[8];
+        try (FileInputStream in = new FileInputStream(model)) {
+            int read = in.read(header);
+            if (read < 8) throw new Exception("GGUF file is truncated: header is incomplete");
+        }
+
+        String magic = new String(header, 0, 4, StandardCharsets.US_ASCII);
+        if (!"GGUF".equals(magic)) {
+            throw new Exception("Invalid GGUF file: magic header is '" + magic + "', not GGUF");
+        }
+
+        long version = ((header[4] & 0xffL))
+                | ((header[5] & 0xffL) << 8)
+                | ((header[6] & 0xffL) << 16)
+                | ((header[7] & 0xffL) << 24);
+        if (version < 1 || version > 3) {
+            throw new Exception("Unsupported GGUF version: " + version);
+        }
+
+        MessageDigest digest = MessageDigest.getInstance("SHA-256");
+        byte[] buffer = new byte[1024 * 1024];
+        long hashed = 0;
+        try (FileInputStream in = new FileInputStream(model)) {
+            int n;
+            while ((n = in.read(buffer)) != -1) {
+                digest.update(buffer, 0, n);
+                hashed += n;
+            }
+        }
+
+        StringBuilder hex = new StringBuilder(64);
+        for (byte b : digest.digest()) {
+            hex.append(String.format(java.util.Locale.US, "%02x", b & 0xff));
+        }
+
+        JSONObject result = new JSONObject();
+        result.put("name", model.getName());
+        result.put("sizeBytes", size);
+        result.put("sizeGB", String.format(java.util.Locale.US, "%.3f", size / 1073741824.0));
+        result.put("bytesHashed", hashed);
+        result.put("magic", magic);
+        result.put("version", version);
+        result.put("sha256", hex.toString());
+        result.put("basicValid", hashed == size && "GGUF".equals(magic) && version >= 1 && version <= 3);
+        return result;
     }
 
     private int safeExitCode() {
@@ -220,6 +274,21 @@ public class MykAIPlugin extends Plugin {
                 synchronized (recentLogs) {
                     tail = recentLogs.toString().trim();
                 }
+                if (tail.contains("data is not within the file bounds")
+                        || tail.contains("model is corrupted or incomplete")) {
+                    String integrity;
+                    try {
+                        JSONObject check = verifyModelFile(model);
+                        integrity = " File header is GGUF v" + check.optLong("version")
+                                + ", size=" + check.optString("sizeGB") + " GB, SHA-256=" + check.optString("sha256") + ".";
+                    } catch (Exception checkError) {
+                        integrity = " Integrity check failed: " + checkError.getMessage();
+                    }
+                    throw new Exception("Padauk GGUF failed llama.cpp tensor-bound validation; "
+                            + "the local model file is likely truncated/incomplete or does not match the source file."
+                            + integrity + " Do not change threads or timeout yet. Replace/re-import the exact GGUF only after comparing this SHA-256 with the source checksum."
+                            + " Last llama log: " + tail);
+                }
                 throw new Exception("Padauk llama-server exited during startup."
                         + (tail.isEmpty() ? " No native log was captured." : " Last llama log: " + tail));
             }
@@ -369,6 +438,37 @@ public class MykAIPlugin extends Plugin {
         result.put("reply", finalContent);
         result.put("thinkingSummary", thinkingSummary);
         return result;
+    }
+
+    @PluginMethod
+    public void verifyModel(PluginCall call) {
+        String modelName = call.getString("modelName", "").trim();
+        if (modelName.isEmpty()
+                || modelName.contains("/")
+                || modelName.contains("\\")
+                || !modelName.toLowerCase().endsWith(".gguf")) {
+            call.reject("Please select a GGUF model first");
+            return;
+        }
+        new Thread(() -> {
+            try {
+                File model = new File(new File(getContext().getFilesDir(), "models"), modelName);
+                JSONObject result = verifyModelFile(model);
+                JSObject out = new JSObject();
+                out.put("name", result.optString("name"));
+                out.put("sizeBytes", result.optLong("sizeBytes"));
+                out.put("sizeGB", result.optString("sizeGB"));
+                out.put("bytesHashed", result.optLong("bytesHashed"));
+                out.put("magic", result.optString("magic"));
+                out.put("version", result.optLong("version"));
+                out.put("sha256", result.optString("sha256"));
+                out.put("basicValid", result.optBoolean("basicValid", false));
+                call.resolve(out);
+            } catch (Exception e) {
+                Log.e(TAG, "Model verification failed", e);
+                call.reject(e.getMessage() == null ? "Model verification failed" : e.getMessage());
+            }
+        }).start();
     }
 
     @PluginMethod
