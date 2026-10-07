@@ -11,17 +11,6 @@ export interface DownloadableModel {
 
 export const MODEL_CATALOG: DownloadableModel[] = [
   {
-    id: 'padauk-iq2s',
-    name: 'AI4Burmese Padauk · IQ2_S · Phone (Experimental)',
-    filename: 'ai4burmese-padauk.i1-IQ2_S.gguf',
-    url: 'https://huggingface.co/mradermacher/ai4burmese-padauk-i1-GGUF/resolve/main/ai4burmese-padauk.i1-IQ2_S.gguf',
-    sizeBytes: 3290000000,
-    recommended: true,
-    description: 'Larger than IQ1_S; experimental phone option. IQ1_S is the smallest current Padauk i1 quant.',
-    tags: ['Padauk', 'Burmese', 'Gemma 4', 'IQ1_S', '3.29GB'],
-  },
-
-  {
     id: 'qwen3-1.7b-q4km',
     name: 'Qwen3 1.7B · Q4_K_M',
     filename: 'Qwen3-1.7B-Q4_K_M.gguf',
