@@ -11,14 +11,14 @@ export interface DownloadableModel {
 
 export const MODEL_CATALOG: DownloadableModel[] = [
   {
-    id: 'padauk-i1-iq2-s',
-    name: 'AI4Burmese Padauk i1-IQ2_S · Phone',
+    id: 'padauk-iq2s',
+    name: 'AI4Burmese Padauk · IQ2_S · Phone (Experimental)',
     filename: 'ai4burmese-padauk.i1-IQ2_S.gguf',
     url: 'https://huggingface.co/mradermacher/ai4burmese-padauk-i1-GGUF/resolve/main/ai4burmese-padauk.i1-IQ2_S.gguf',
     sizeBytes: 3290000000,
     recommended: true,
-    description: 'Smallest Padauk quant. Still requires an 8GB-class phone; use this before larger Padauk quants.',
-    tags: ['Padauk', 'Burmese', 'Gemma 4', 'IQ1_S', '3.3GB'],
+    description: 'Larger than IQ1_S; experimental phone option. IQ1_S is the smallest current Padauk i1 quant.',
+    tags: ['Padauk', 'Burmese', 'Gemma 4', 'IQ1_S', '3.29GB'],
   },
 
   {
@@ -85,9 +85,9 @@ export const MODEL_CATALOG: DownloadableModel[] = [
     id: 'padauk-iq1s',
     name: 'AI4Burmese Padauk · IQ1_S · Phone Lite',
     filename: 'ai4burmese-padauk.i1-IQ1_S.gguf',
-    sizeBytes: 3400000000,
+    sizeBytes: 3290000000,
     description: 'Padauk ရဲ့ အရွယ်အသေးဆုံး community quantization။ Quality လျော့နိုင်ပေမယ့် 5.3GB Q4 ထက် ဖုန်းမှာ စမ်းရန်ပိုသင့်တော်သည်။',
-    tags: ['Burmese-first', '7B', '3.4 GB', 'Phone Lite'],
+    tags: ['Burmese-first', '7B', '3.29 GB', 'Phone Lite'],
     recommended: false,
     url: 'https://huggingface.co/mradermacher/ai4burmese-padauk-i1-GGUF/resolve/main/ai4burmese-padauk.i1-IQ1_S.gguf',
   },
