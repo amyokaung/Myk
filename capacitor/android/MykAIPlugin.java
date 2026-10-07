@@ -116,8 +116,8 @@ public class MykAIPlugin extends Plugin {
         // Padauk IQ1_S is still a 7B Gemma4 model. Keep the Android working set small.
         // mmap + lazy loading lets the OS page weights in/out instead of making the
         // whole GGUF resident.
-        contextSize = Math.min(contextSize, 256);
-        threads = Math.min(threads, 2);
+        contextSize = Math.min(contextSize, 384);
+        threads = Math.min(threads, 4);
         Log.w(TAG, "Padauk mobile-low-memory profile: context=" + contextSize
                 + " threads=" + threads + " modelBytes=" + modelBytes
                 + " totalRam=" + totalRam + " freeRam=" + freeRam);
@@ -137,18 +137,12 @@ public class MykAIPlugin extends Plugin {
         command.add("-tb");
         command.add(String.valueOf(threads));
         command.add("-b");
-        command.add("8");
+        command.add("16");
         command.add("-ub");
-        command.add("4");
+        command.add("8");
         command.add("-np");
         command.add("1");
         command.add("--no-warmup");
-        command.add("--load-mode");
-        command.add("mmap");
-        command.add("--lazy-mode");
-        command.add("on");
-        command.add("--cache-ram");
-        command.add("64");
         command.add("--jinja");
         command.add("--reasoning");
         command.add("off");
