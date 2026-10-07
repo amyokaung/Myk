@@ -19,7 +19,7 @@ interface EngineSettings {
 
 const DEFAULT_SETTINGS: EngineSettings = {
   contextSize: 512,
-  threads: 8,
+  threads: 6,
   temperature: 0.5,
   maxTokens: 128,
   startupTimeoutSeconds: 120,
@@ -281,10 +281,12 @@ export default function WebApp() {
       if (tab === 'localChat') {
         const learnedContext = loadLearningExamples()
           .filter(item => item.status === 'approved')
-          .slice(0, 40)
+          // Keep the offline prompt small. On a CPU-only phone, thousands of
+          // extra prompt characters can noticeably increase prefill time.
+          .slice(0, 8)
           .map(item => 'Q: ' + item.question + '\nA: ' + item.idealAnswer)
           .join('\n\n')
-           .slice(0, 2500);
+           .slice(0, 900);
         if (modelName === 'No GGUF model selected' || !modelName.toLowerCase().includes('padauk')) {
           throw new Error('Padauk GGUF ကို Models မှာ Active လုပ်ပါ။');
         }
@@ -295,7 +297,8 @@ export default function WebApp() {
           contextSize: settings.contextSize,
           threads: settings.threads,
           temperature: settings.temperature,
-          maxTokens: Math.min(48, Math.max(24, settings.maxTokens)),
+          // Padauk mobile mode is intended for concise chat replies.
+          maxTokens: Math.min(32, Math.max(20, settings.maxTokens)),
           startupTimeoutSeconds: settings.startupTimeoutSeconds,
           responseTimeoutSeconds: Math.max(90, settings.responseTimeoutSeconds),
           thinkingMode: false,
