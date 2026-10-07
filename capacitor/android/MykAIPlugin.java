@@ -142,13 +142,9 @@ public class MykAIPlugin extends Plugin {
         command.add("--no-warmup");
         command.add("--jinja");
         command.add("--reasoning");
-        command.add("auto");
+        command.add("off");
         command.add("--reasoning-format");
         command.add("none");
-        // Gemma 4's chat template uses this switch to disable its internal
-        // thinking while retaining the normal assistant answer path.
-        command.add("--chat-template-kwargs");
-        command.add("{\"enable_thinking\":false}");
         command.add("--cache-type-k");
         command.add("q4_0");
         command.add("--cache-type-v");
@@ -252,7 +248,7 @@ public class MykAIPlugin extends Plugin {
 
         if (learnedContext != null && !learnedContext.trim().isEmpty()) {
             String safeLearning = learnedContext.trim();
-            if (safeLearning.length() > 7000) safeLearning = safeLearning.substring(0, 7000);
+            if (safeLearning.length() > 1800) safeLearning = safeLearning.substring(0, 1800);
             messages.put(new JSONObject()
                     .put("role", "system")
                     .put("content", "APPROVED MYK LEARNING REFERENCE:\n" + safeLearning));
@@ -261,7 +257,7 @@ public class MykAIPlugin extends Plugin {
         if (historyJson != null && !historyJson.trim().isEmpty()) {
             try {
                 JSONArray history = new JSONArray(historyJson);
-                int start = Math.max(0, history.length() - 6);
+                int start = Math.max(0, history.length() - 2);
                 for (int i = start; i < history.length(); i++) {
                     JSONObject item = history.optJSONObject(i);
                     if (item == null) continue;
@@ -282,7 +278,7 @@ public class MykAIPlugin extends Plugin {
         messages.put(new JSONObject().put("role", "user").put("content", message));
         body.put("messages", messages);
         body.put("temperature", Math.max(0.0, Math.min(2.0, temperature)));
-        body.put("max_tokens", Math.max(16, Math.min(2048, maxTokens)));
+        body.put("max_tokens", Math.max(16, Math.min(128, maxTokens)));
         body.put("stream", false);
         // Server-side --reasoning off is authoritative for Padauk/Gemma 4.
         // Do not send client-side reasoning controls here.
@@ -291,7 +287,7 @@ public class MykAIPlugin extends Plugin {
                 new URL("http://127.0.0.1:" + PORT + "/v1/chat/completions").openConnection();
         c.setRequestMethod("POST");
         c.setConnectTimeout(3000);
-        c.setReadTimeout(Math.max(15, Math.min(180, responseTimeoutSeconds)) * 1000);
+        c.setReadTimeout(Math.max(45, Math.min(180, responseTimeoutSeconds)) * 1000);
         c.setDoOutput(true);
         c.setRequestProperty("Content-Type", "application/json");
 
