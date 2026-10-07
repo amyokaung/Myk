@@ -14,6 +14,16 @@ export interface MykAIPlugin {
     thinkingMode?: boolean;
     learnedContext?: string;
   }): Promise<{reply: string; thinkingSummary?: string; startupMs?: number; generationMs?: number; totalMs?: number}>;
+  verifyModel(options: {modelName: string}): Promise<{
+    name: string;
+    sizeBytes: number;
+    sizeGB: string;
+    bytesHashed: number;
+    magic: string;
+    version: number;
+    sha256: string;
+    basicValid: boolean;
+  }>;
   stop(): Promise<void>;
 }
 
