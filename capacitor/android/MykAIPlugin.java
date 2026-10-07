@@ -129,8 +129,8 @@ public class MykAIPlugin extends Plugin {
         // mmap + lazy loading lets the OS page weights in/out instead of making the
         // whole GGUF resident.
         contextSize = Math.min(contextSize, 384);
-        threads = Math.min(threads, 4);
-        Log.w(TAG, "Padauk mobile-low-memory profile: context=" + contextSize
+        threads = Math.min(threads, 6);
+        Log.w(TAG, "Padauk mobile profile: context=" + contextSize
                 + " threads=" + threads + " modelBytes=" + modelBytes
                 + " totalRam=" + totalRam + " freeRam=" + freeRam);
 
