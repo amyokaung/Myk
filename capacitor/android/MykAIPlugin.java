@@ -35,18 +35,30 @@ public class MykAIPlugin extends Plugin {
         return getContext().getApplicationInfo().nativeLibraryDir + "/libllamaserver.so";
     }
 
-    private boolean healthy() {
+    private String healthStatus() {
+        HttpURLConnection c = null;
         try {
-            HttpURLConnection c = (HttpURLConnection)
+            c = (HttpURLConnection)
                     new URL("http://127.0.0.1:" + PORT + "/health").openConnection();
             c.setConnectTimeout(1000);
             c.setReadTimeout(1000);
             int code = c.getResponseCode();
-            c.disconnect();
-            return code == 200;
+            return "HTTP " + code;
         } catch (Exception e) {
-            return false;
+            return "unreachable:" + e.getClass().getSimpleName();
+        } finally {
+            if (c != null) c.disconnect();
         }
+    }
+
+    private boolean healthy() {
+        return healthStatus().equals("HTTP 200");
+    }
+
+    private int safeExitCode() {
+        try { return process == null ? -1 : process.exitValue(); }
+        catch (IllegalThreadStateException e) { return -999; }
+        catch (Exception e) { return -2; }
     }
 
     private void destroyServer() {
@@ -169,7 +181,9 @@ public class MykAIPlugin extends Plugin {
             recentLogs.setLength(0);
         }
         serverModelLoaded = false;
+        Log.i(TAG, "EXEC=" + command);
         process = builder.start();
+        Log.i(TAG, "PROCESS_STARTED");
         activeModelPath = requestedPath;
         activeContextSize = contextSize;
         activeThreads = threads;
@@ -197,6 +211,7 @@ public class MykAIPlugin extends Plugin {
         logs.start();
 
         long deadline = System.currentTimeMillis() + startupTimeoutSeconds * 1000L;
+        long nextDiag = System.currentTimeMillis();
         while (System.currentTimeMillis() < deadline) {
             if (process == null || !process.isAlive()) {
                 String tail;
@@ -207,6 +222,10 @@ public class MykAIPlugin extends Plugin {
                         + (tail.isEmpty() ? " No native log was captured." : " Last llama log: " + tail));
             }
             if (serverModelLoaded || healthy()) return System.currentTimeMillis() - startMs;
+            if (System.currentTimeMillis() >= nextDiag) {
+                Log.w(TAG, "STARTUP_DIAG alive=" + process.isAlive() + " health=" + healthStatus());
+                nextDiag = System.currentTimeMillis() + 5000;
+            }
             Thread.sleep(750);
         }
 
@@ -220,7 +239,7 @@ public class MykAIPlugin extends Plugin {
         synchronized (recentLogs) {
             tail = recentLogs.toString();
         }
-        throw new Exception("Padauk STARTUP timeout. Model="
+        throw new Exception("Padauk STARTUP TIMEOUT. alive=" + (process != null && process.isAlive()) + ", exit=" + safeExitCode() + ", health=" + healthStatus() + ". Model="
                 + String.format(java.util.Locale.US, "%.2f GB", model.length() / 1073741824.0)
                 + ", free RAM=" + String.format(java.util.Locale.US, "%.2f GB", currentFreeRam / 1073741824.0)
                 + ". The model may be too large for current phone memory. Try closing other apps or a smaller Padauk quantization. Last llama log: " + tail.trim());
